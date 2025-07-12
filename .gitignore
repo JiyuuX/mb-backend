@@ -1,0 +1,63 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django migrations
+*/migrations/
+!*/migrations/__init__.py
+
+# SQLite database file
+*.sqlite3
+
+# Local settings
+local_settings.py
+
+# Secret keys or environment files
+.env
+*.env
+
+# Media and static files (optional - dev use only)
+media/
+staticfiles/
+
+# VS Code settings (if kullanıyorsan)
+.vscode/
+
+# MacOS
+.DS_Store
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+
+# pip freeze output
+requirements*.txt
+
+# Coverage reports
+htmlcov/
+.coverage
+.tox/
+.nox/
+.cache/
+coverage.xml
+
+# Pytest cache
+.pytest_cache/
+
+# MyPy
+.mypy_cache/
+
+# Pyre type checker
+.pyre/
+
+# Logs
+*.log
+
+# JetBrains IDEs (PyCharm)
+.idea/
+
+# Test database
+test*.sqlite3
