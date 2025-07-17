@@ -12,6 +12,21 @@ class Thread(models.Model):
     is_pinned = models.BooleanField(default=False, verbose_name='Sabitlendi mi?')
     is_locked = models.BooleanField(default=False, verbose_name='Kilitli mi?')
     
+    CATEGORY_CHOICES = [
+        ('genel', 'Genel'),
+        ('muzik', 'Müzik'),
+        ('oyun', 'Oyun'),
+        ('film', 'Film'),
+        ('spor', 'Spor'),
+        ('teknoloji', 'Teknoloji'),
+        ('espor', 'Espor'),
+        ('finans', 'Finans&Kripto'),
+        ('bilim', 'Bilim'),
+        ('diger', 'Diğer'),
+    ]
+    category = models.CharField(max_length=32, choices=CATEGORY_CHOICES, default='genel', verbose_name='Kategori')
+    likes = models.ManyToManyField(User, related_name='liked_threads', blank=True, verbose_name='Beğenenler')
+    
     class Meta:
         verbose_name = 'Konu'
         verbose_name_plural = 'Konular'

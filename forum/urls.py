@@ -1,7 +1,8 @@
 from django.urls import path
 from .views import (
     ThreadListCreateView, ThreadDetailView, PostListCreateView, 
-    PostDetailView, CommentListCreateView, CommentDetailView, ThreadStatsView
+    PostDetailView, CommentListCreateView, CommentDetailView, ThreadStatsView,
+    ThreadLikeToggleView, HotTopicsView
 )
 
 urlpatterns = [
@@ -12,4 +13,6 @@ urlpatterns = [
     path('posts/<int:post_id>/comments/', CommentListCreateView.as_view(), name='comment-list-create'),
     path('comments/<int:pk>/', CommentDetailView.as_view(), name='comment-detail'),
     path('threads/<int:thread_id>/stats/', ThreadStatsView.as_view(), name='thread-stats'),
+    path('threads/<int:thread_id>/like/', ThreadLikeToggleView.as_view(), name='thread-like-toggle'),
+    path('threads/hot/', HotTopicsView.as_view(), name='hot-topics'),
 ] 

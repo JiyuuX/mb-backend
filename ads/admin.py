@@ -15,7 +15,7 @@ class AdvertisementAdmin(admin.ModelAdmin):
             'fields': ('title', 'description', 'company_name')
         }),
         ('Medya', {
-            'fields': ('gif_file', 'link_url')
+            'fields': ('gif_file', 'image_file', 'video_file', 'link_url')
         }),
         ('Durum', {
             'fields': ('is_active', 'priority', 'start_date', 'end_date')

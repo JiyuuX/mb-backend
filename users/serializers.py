@@ -42,6 +42,22 @@ class UserLoginSerializer(serializers.Serializer):
                 raise serializers.ValidationError('Hesabınız aktif değil.')
             if not user.email_verified:
                 raise serializers.ValidationError('Email adresinizi doğrulamanız gerekiyor.')
+            # Ban kontrolü
+            if user.is_banned:
+                from django.utils import timezone
+                now = timezone.now()
+                if user.ban_until is None or (user.ban_until and user.ban_until > now):
+                    kalan_sure = None
+                    if user.ban_until:
+                        kalan_sure = user.ban_until - now
+                    raise serializers.ValidationError({
+                        'banli': True,
+                        'ban_sebebi': user.ban_reason,
+                        'ban_suresiz': user.ban_until is None,
+                        'ban_bitis': user.ban_until,
+                        'kalan_sure': kalan_sure.total_seconds() if kalan_sure else None,
+                        'mesaj': f"Hesabınız {'süresiz' if user.ban_until is None else 'süreli'} olarak banlanmıştır. {f'Kalan süre: {kalan_sure}' if kalan_sure else ''}"
+                    })
         else:
             raise serializers.ValidationError('Kullanıcı adı ve şifre gereklidir.')
         
@@ -49,14 +65,43 @@ class UserLoginSerializer(serializers.Serializer):
         return attrs
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    is_premium_active = serializers.ReadOnlyField()
+    email_verified = serializers.ReadOnlyField()
+    card_issued_at = serializers.ReadOnlyField()
+    instagram = serializers.ReadOnlyField()
+    twitter = serializers.ReadOnlyField()
+    facebook = serializers.ReadOnlyField()
+    linkedin = serializers.ReadOnlyField()
+    website = serializers.ReadOnlyField()
+    followers_count = serializers.ReadOnlyField()
+    following_count = serializers.ReadOnlyField()
+    is_following = serializers.SerializerMethodField()
+    created_at = serializers.ReadOnlyField()
+    updated_at = serializers.ReadOnlyField()
+    thread_count = serializers.ReadOnlyField()
+    is_banned = serializers.ReadOnlyField()
+    ban_reason = serializers.ReadOnlyField()
+    ban_until = serializers.ReadOnlyField()
+    
     class Meta:
         model = CustomUser
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 'profile_picture', 
-                 'bio', 'phone_number', 'is_premium', 'premium_expires_at', 
-                 'custom_username_color', 'card_number', 'can_create_threads', 
-                 'date_joined', 'last_login')
-        read_only_fields = ('id', 'username', 'email', 'is_premium', 'premium_expires_at', 
-                           'card_number', 'can_create_threads', 'date_joined', 'last_login')
+                 'bio', 'phone_number', 'is_premium', 'is_premium_active', 'email_verified',
+                 'premium_expires_at', 'custom_username_color', 'card_number', 'card_issued_at',
+                 'can_create_threads', 'is_secondhand_seller', 'instagram', 'twitter', 
+                 'facebook', 'linkedin', 'website', 'followers_count', 'following_count',
+                 'is_following', 'created_at', 'updated_at', 'thread_count',
+                 'is_banned', 'ban_reason', 'ban_until')
+        read_only_fields = ('id', 'username', 'email', 'is_premium', 'is_premium_active',
+                           'email_verified', 'premium_expires_at', 'card_number', 'card_issued_at',
+                           'can_create_threads', 'created_at', 'updated_at',
+                           'is_banned', 'ban_reason', 'ban_until')
+    
+    def get_is_following(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return request.user in obj.followers.all()
+        return False
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -88,3 +133,53 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         if attrs['new_password'] != attrs['new_password_confirm']:
             raise serializers.ValidationError("Yeni şifreler eşleşmiyor.")
         return attrs 
+
+class UserSerializer(serializers.ModelSerializer):
+    is_banned = serializers.ReadOnlyField()
+    ban_reason = serializers.ReadOnlyField()
+    ban_until = serializers.ReadOnlyField()
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_premium', 'is_premium_active', 
+                 'email_verified', 'profile_picture', 'bio', 'phone_number', 'custom_username_color',
+                 'card_number', 'card_issued_at', 'can_create_threads', 'is_secondhand_seller', 
+                 'created_at', 'updated_at', 'is_banned', 'ban_reason', 'ban_until']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'is_banned', 'ban_reason', 'ban_until']
+
+class PublicProfileSerializer(serializers.ModelSerializer):
+    followers_count = serializers.ReadOnlyField()
+    following_count = serializers.ReadOnlyField()
+    is_following = serializers.SerializerMethodField()
+    email = serializers.ReadOnlyField()
+    is_premium_active = serializers.ReadOnlyField()
+    email_verified = serializers.ReadOnlyField()
+    card_issued_at = serializers.ReadOnlyField()
+    can_create_threads = serializers.ReadOnlyField()
+    updated_at = serializers.ReadOnlyField()
+    thread_count = serializers.ReadOnlyField()
+    is_banned = serializers.ReadOnlyField()
+    ban_reason = serializers.ReadOnlyField()
+    ban_until = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'profile_picture', 'bio',
+                 'phone_number', 'custom_username_color', 'card_number', 'card_issued_at',
+                 'instagram', 'twitter', 'facebook', 'linkedin', 'website',
+                 'is_premium', 'is_premium_active', 'email_verified', 'can_create_threads',
+                 'is_secondhand_seller', 'followers_count', 'following_count',
+                 'is_following', 'created_at', 'updated_at', 'thread_count',
+                 'is_banned', 'ban_reason', 'ban_until']
+        read_only_fields = ['id', 'email', 'is_premium', 'is_premium_active', 'email_verified',
+                           'card_number', 'card_issued_at', 'can_create_threads', 'created_at', 'updated_at',
+                           'is_banned', 'ban_reason', 'ban_until']
+    
+    def get_is_following(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return request.user in obj.followers.all()
+        return False
+
+class FollowSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    action = serializers.ChoiceField(choices=['follow', 'unfollow']) 

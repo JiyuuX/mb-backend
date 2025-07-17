@@ -51,6 +51,8 @@ INSTALLED_APPS = [
     'forum',
     'news',
     'ads',
+    'market',
+    'chat',
 ]
 
 MIDDLEWARE = [

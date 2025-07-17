@@ -9,11 +9,22 @@ class UserSerializer(serializers.ModelSerializer):
 
 class ThreadSerializer(serializers.ModelSerializer):
     creator = UserSerializer(read_only=True)
-    
+    likes_count = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+
     class Meta:
         model = Thread
-        fields = ['id', 'title', 'creator', 'created_at', 'updated_at', 'is_pinned', 'is_locked']
-        read_only_fields = ['creator', 'created_at', 'updated_at']
+        fields = ['id', 'title', 'creator', 'created_at', 'updated_at', 'is_pinned', 'is_locked', 'category', 'likes_count', 'is_liked']
+        read_only_fields = ['creator', 'created_at', 'updated_at', 'likes_count', 'is_liked']
+
+    def get_likes_count(self, obj):
+        return obj.likes.count()
+
+    def get_is_liked(self, obj):
+        user = self.context.get('request').user if self.context.get('request') else None
+        if user and user.is_authenticated:
+            return obj.likes.filter(id=user.id).exists()
+        return False
 
 class PostSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)

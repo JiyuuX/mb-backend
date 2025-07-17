@@ -18,6 +18,16 @@ class CustomUser(AbstractUser):
     bio = models.TextField(max_length=500, blank=True)
     phone_number = models.CharField(max_length=15, blank=True)
     
+    # Sosyal medya linkleri
+    instagram = models.URLField(blank=True, null=True)
+    twitter = models.URLField(blank=True, null=True)
+    facebook = models.URLField(blank=True, null=True)
+    linkedin = models.URLField(blank=True, null=True)
+    website = models.URLField(blank=True, null=True)
+    
+    # Takip sistemi
+    followers = models.ManyToManyField('self', symmetrical=False, related_name='following', blank=True)
+    
     # Premium özellikler
     custom_username_color = models.CharField(max_length=7, default='#000000')  # Hex color code
     
@@ -27,6 +37,14 @@ class CustomUser(AbstractUser):
     
     # Forum yetkileri
     can_create_threads = models.BooleanField(default=False)
+    
+    # 2. el satıcı badge'si
+    is_secondhand_seller = models.BooleanField(default=False)
+    
+    # Banlama alanları
+    is_banned = models.BooleanField(default=False, verbose_name='Banlı mı?')
+    ban_reason = models.CharField(max_length=255, blank=True, null=True, verbose_name='Ban Sebebi')
+    ban_until = models.DateTimeField(blank=True, null=True, verbose_name='Ban Bitiş Tarihi (süresiz için boş)')
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -50,6 +68,16 @@ class CustomUser(AbstractUser):
             return False
         return True
     
+    @property
+    def followers_count(self):
+        """Takipçi sayısını döndürür"""
+        return self.followers.count()
+    
+    @property
+    def following_count(self):
+        """Takip edilen kullanıcı sayısını döndürür"""
+        return self.following.count()
+    
     def activate_premium(self, duration_days=30):
         """Premium üyeliği aktifleştirir"""
         from django.utils import timezone
@@ -66,3 +94,8 @@ class CustomUser(AbstractUser):
         self.card_issued_at = timezone.now()
         self.save()
         return card_number
+
+    @property
+    def thread_count(self):
+        """Kullanıcının oluşturduğu thread sayısını döndürür"""
+        return self.threads.count()

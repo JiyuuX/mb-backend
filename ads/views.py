@@ -1,8 +1,10 @@
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from .models import Advertisement
 from .serializers import AdvertisementSerializer
+from rest_framework.permissions import IsAuthenticated
+from users.permissions import IsNotBanned
 
 @api_view(['GET'])
 def get_active_ads(request):
@@ -29,6 +31,7 @@ def get_active_ads(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated, IsNotBanned])
 def ad_click(request, ad_id):
     """Reklam tıklama sayısını artır"""
     try:

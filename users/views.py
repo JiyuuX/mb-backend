@@ -1,5 +1,5 @@
 from rest_framework import status, generics, permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -15,8 +15,12 @@ from .models import CustomUser
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer, UserProfileSerializer,
     UserUpdateSerializer, EmailVerificationSerializer, PasswordChangeSerializer,
-    PasswordResetRequestSerializer, PasswordResetConfirmSerializer
+    PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
+    PublicProfileSerializer, FollowSerializer
 )
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from .permissions import IsNotBanned
 
 class UserRegistrationView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -84,7 +88,26 @@ class UserLoginView(APIView):
                     'first_name': user.first_name,
                     'last_name': user.last_name,
                     'is_premium': user.is_premium,
+                    'is_premium_active': user.is_premium_active,
+                    'email_verified': user.email_verified,
                     'profile_picture': user.profile_picture.url if user.profile_picture else None,
+                    'bio': user.bio,
+                    'phone_number': user.phone_number,
+                    'custom_username_color': user.custom_username_color,
+                    'card_number': user.card_number,
+                    'card_issued_at': user.card_issued_at.isoformat() if user.card_issued_at else None,
+                    'can_create_threads': user.can_create_threads,
+                    'is_secondhand_seller': user.is_secondhand_seller,
+                    'instagram': user.instagram,
+                    'twitter': user.twitter,
+                    'facebook': user.facebook,
+                    'linkedin': user.linkedin,
+                    'website': user.website,
+                    'followers_count': user.followers.count(),
+                    'following_count': user.following.count(),
+                    'is_following': False,  # Kendisi kendisini takip etmez
+                    'created_at': user.date_joined.isoformat(),
+                    'updated_at': user.updated_at.isoformat() if hasattr(user, 'updated_at') else user.date_joined.isoformat(),
                 }
             }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -176,20 +199,25 @@ class ResendVerificationEmailView(APIView):
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
     
     def get_object(self):
         return self.request.user
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
 class UserUpdateView(generics.UpdateAPIView):
     serializer_class = UserUpdateSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
     
     def get_object(self):
         return self.request.user
 
 class PasswordChangeView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
     
     def post(self, request):
         serializer = PasswordChangeSerializer(data=request.data)
@@ -213,7 +241,7 @@ class PasswordChangeView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LogoutView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
     
     def post(self, request):
         try:
@@ -231,7 +259,7 @@ class LogoutView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 class ActivatePremiumView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
     
     def post(self, request):
         try:
@@ -255,3 +283,90 @@ class ActivatePremiumView(APIView):
             return Response({
                 'message': f'Premium aktivasyon hatası: {str(e)}'
             }, status=status.HTTP_400_BAD_REQUEST)
+
+class UserViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, IsNotBanned]
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsNotBanned])
+    def activate_secondhand_seller(self, request):
+        user = request.user
+        user.is_secondhand_seller = True
+        user.save()
+        return Response({'success': True, 'message': '2. el satıcı badge aktif edildi.'})
+
+class PublicProfileView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def get(self, request, username):
+        try:
+            user = CustomUser.objects.get(username=username)
+            serializer = PublicProfileSerializer(user, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except CustomUser.DoesNotExist:
+            return Response({
+                'message': 'Kullanıcı bulunamadı.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+class FollowUserView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+    
+    def post(self, request):
+        serializer = FollowSerializer(data=request.data)
+        if serializer.is_valid():
+            user_id = serializer.validated_data['user_id']
+            action = serializer.validated_data['action']
+            
+            try:
+                target_user = CustomUser.objects.get(id=user_id)
+                
+                if action == 'follow':
+                    if request.user != target_user:
+                        request.user.following.add(target_user)
+                        message = f'{target_user.username} kullanıcısını takip etmeye başladınız.'
+                    else:
+                        return Response({
+                            'message': 'Kendinizi takip edemezsiniz.'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                elif action == 'unfollow':
+                    request.user.following.remove(target_user)
+                    message = f'{target_user.username} kullanıcısını takipten çıkardınız.'
+                
+                return Response({
+                    'message': message,
+                    'is_following': action == 'follow'
+                }, status=status.HTTP_200_OK)
+                
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'message': 'Kullanıcı bulunamadı.'
+                }, status=status.HTTP_404_NOT_FOUND)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UserFollowersView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def get(self, request, username):
+        try:
+            user = CustomUser.objects.get(username=username)
+            followers = user.followers.all()
+            serializer = PublicProfileSerializer(followers, many=True, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except CustomUser.DoesNotExist:
+            return Response({
+                'message': 'Kullanıcı bulunamadı.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+class UserFollowingView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def get(self, request, username):
+        try:
+            user = CustomUser.objects.get(username=username)
+            following = user.following.all()
+            serializer = PublicProfileSerializer(following, many=True, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except CustomUser.DoesNotExist:
+            return Response({
+                'message': 'Kullanıcı bulunamadı.'
+            }, status=status.HTTP_404_NOT_FOUND)

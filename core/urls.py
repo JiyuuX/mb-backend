@@ -27,6 +27,8 @@ urlpatterns = [
     path('api/forum/', include('forum.urls')),
     path('api/news/', include('news.urls')),
     path('api/ads/', include('ads.urls')),
+    path('api/market/', include('market.urls')),
+    path('api/chat/', include('chat.urls')),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 

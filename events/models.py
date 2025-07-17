@@ -1,76 +1,118 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from datetime import time
 
 User = get_user_model()
 
 class Event(models.Model):
-    EVENT_TYPES = [
-        ('academic', 'Akademik'),
-        ('social', 'Sosyal'),
-        ('sports', 'Spor'),
-        ('cultural', 'Kültür'),
-        ('career', 'Kariyer'),
-        ('other', 'Diğer'),
+    # Türkiye'nin 81 ili (alfabetik sıralı)
+    CITIES = [
+        ('adana', 'Adana'),
+        ('adiyaman', 'Adıyaman'),
+        ('afyonkarahisar', 'Afyonkarahisar'),
+        ('agri', 'Ağrı'),
+        ('aksaray', 'Aksaray'),
+        ('amasya', 'Amasya'),
+        ('ankara', 'Ankara'),
+        ('antalya', 'Antalya'),
+        ('ardahan', 'Ardahan'),
+        ('artvin', 'Artvin'),
+        ('aydin', 'Aydın'),
+        ('balikesir', 'Balıkesir'),
+        ('bartin', 'Bartın'),
+        ('batman', 'Batman'),
+        ('bayburt', 'Bayburt'),
+        ('bilecik', 'Bilecik'),
+        ('bingol', 'Bingöl'),
+        ('bitlis', 'Bitlis'),
+        ('bolu', 'Bolu'),
+        ('burdur', 'Burdur'),
+        ('bursa', 'Bursa'),
+        ('canakkale', 'Çanakkale'),
+        ('cankiri', 'Çankırı'),
+        ('corum', 'Çorum'),
+        ('denizli', 'Denizli'),
+        ('diyarbakir', 'Diyarbakır'),
+        ('duzce', 'Düzce'),
+        ('edirne', 'Edirne'),
+        ('elazig', 'Elazığ'),
+        ('erzincan', 'Erzincan'),
+        ('erzurum', 'Erzurum'),
+        ('eskisehir', 'Eskişehir'),
+        ('gaziantep', 'Gaziantep'),
+        ('giresun', 'Giresun'),
+        ('gumushane', 'Gümüşhane'),
+        ('hakkari', 'Hakkari'),
+        ('hatay', 'Hatay'),
+        ('igdir', 'Iğdır'),
+        ('isparta', 'Isparta'),
+        ('istanbul', 'İstanbul'),
+        ('izmir', 'İzmir'),
+        ('kahramanmaras', 'Kahramanmaraş'),
+        ('karabuk', 'Karabük'),
+        ('karaman', 'Karaman'),
+        ('kars', 'Kars'),
+        ('kastamonu', 'Kastamonu'),
+        ('kayseri', 'Kayseri'),
+        ('kilis', 'Kilis'),
+        ('kirikkale', 'Kırıkkale'),
+        ('kirklareli', 'Kırklareli'),
+        ('kirsehir', 'Kırşehir'),
+        ('kocaeli', 'Kocaeli'),
+        ('konya', 'Konya'),
+        ('kutahya', 'Kütahya'),
+        ('malatya', 'Malatya'),
+        ('manisa', 'Manisa'),
+        ('mardin', 'Mardin'),
+        ('mersin', 'Mersin'),
+        ('mugla', 'Muğla'),
+        ('mus', 'Muş'),
+        ('nevsehir', 'Nevşehir'),
+        ('nigde', 'Niğde'),
+        ('ordu', 'Ordu'),
+        ('osmaniye', 'Osmaniye'),
+        ('rize', 'Rize'),
+        ('sakarya', 'Sakarya'),
+        ('samsun', 'Samsun'),
+        ('sanliurfa', 'Şanlıurfa'),
+        ('siirt', 'Siirt'),
+        ('sinop', 'Sinop'),
+        ('sirnak', 'Şırnak'),
+        ('sivas', 'Sivas'),
+        ('tekirdag', 'Tekirdağ'),
+        ('tokat', 'Tokat'),
+        ('trabzon', 'Trabzon'),
+        ('tunceli', 'Tunceli'),
+        ('usak', 'Uşak'),
+        ('van', 'Van'),
+        ('yalova', 'Yalova'),
+        ('yozgat', 'Yozgat'),
+        ('zonguldak', 'Zonguldak'),
     ]
     
-    title = models.CharField(max_length=200, verbose_name='Başlık')
-    description = models.TextField(verbose_name='Açıklama')
-    event_type = models.CharField(max_length=20, choices=EVENT_TYPES, verbose_name='Etkinlik Türü')
-    
-    # Tarih ve saat bilgileri
-    start_date = models.DateTimeField(verbose_name='Başlangıç Tarihi')
-    end_date = models.DateTimeField(verbose_name='Bitiş Tarihi')
-    
-    # Konum bilgileri
-    location = models.CharField(max_length=200, verbose_name='Konum')
-    location_details = models.TextField(blank=True, verbose_name='Konum Detayları')
-    
-    # Organizatör bilgileri
-    organizer = models.CharField(max_length=100, verbose_name='Organizatör')
-    contact_email = models.EmailField(blank=True, verbose_name='İletişim E-postası')
-    contact_phone = models.CharField(max_length=15, blank=True, verbose_name='İletişim Telefonu')
-    
-    # Görsel ve medya
-    image = models.ImageField(upload_to='events/', null=True, blank=True, verbose_name='Etkinlik Görseli')
-    
-    # Katılım bilgileri
-    max_participants = models.PositiveIntegerField(null=True, blank=True, verbose_name='Maksimum Katılımcı')
-    current_participants = models.PositiveIntegerField(default=0, verbose_name='Mevcut Katılımcı')
-    
-    # Durum ve onay
-    is_approved = models.BooleanField(default=False, verbose_name='Onaylandı mı?')
-    is_featured = models.BooleanField(default=False, verbose_name='Öne Çıkan')
-    
-    # Timestamps
+    name = models.CharField(max_length=255, default="Etkinlik")
+    venue = models.CharField(max_length=255, default="Bilinmiyor")
+    city = models.CharField(max_length=20, choices=CITIES, default='istanbul', verbose_name='İl')
+    date = models.DateField(default=timezone.now)
+    time = models.TimeField(default=time(0, 0))
+    description = models.TextField(blank=True)
+    ticket_price = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
+    capacity = models.PositiveIntegerField(default=100)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        verbose_name = 'Etkinlik'
-        verbose_name_plural = 'Etkinlikler'
-        ordering = ['-start_date']
-    
+    is_approved = models.BooleanField(default=True)  # Etkinlik onay durumu
+
     def __str__(self):
-        return self.title
-    
-    @property
-    def is_upcoming(self):
-        """Yaklaşan etkinlik mi?"""
-        return self.start_date > timezone.now()
-    
-    @property
-    def is_ongoing(self):
-        """Devam eden etkinlik mi?"""
-        now = timezone.now()
-        return self.start_date <= now <= self.end_date
-    
-    @property
-    def is_full(self):
-        """Katılımcı kontenjanı dolu mu?"""
-        if self.max_participants is None:
-            return False
-        return self.current_participants >= self.max_participants
+        return f'{self.name} - {self.venue} ({self.get_city_display()})'
+
+class Ticket(models.Model):
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE)
+    purchased_at = models.DateTimeField(auto_now_add=True)
+    code = models.CharField(max_length=32, unique=True)
+
+    def __str__(self):
+        return f'{self.user.username} - {self.event.name}'
 
 class EventRegistration(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='registrations', verbose_name='Etkinlik')

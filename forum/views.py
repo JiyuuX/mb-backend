@@ -6,6 +6,10 @@ from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
 from .models import Thread, Post, Comment
 from .serializers import ThreadSerializer, PostSerializer, CommentSerializer
+from rest_framework.permissions import IsAuthenticated
+from datetime import timedelta
+from django.utils import timezone
+from users.permissions import IsNotBanned
 
 # Create your views here.
 
@@ -21,7 +25,7 @@ class IsPremiumUser(permissions.BasePermission):
 class ThreadListCreateView(generics.ListCreateAPIView):
     queryset = Thread.objects.all().order_by('-is_pinned', '-created_at')
     serializer_class = ThreadSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
 
     def perform_create(self, serializer):
         if not self.request.user.is_premium:
@@ -31,11 +35,11 @@ class ThreadListCreateView(generics.ListCreateAPIView):
 class ThreadDetailView(generics.RetrieveAPIView):
     queryset = Thread.objects.all()
     serializer_class = ThreadSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
 
 class PostListCreateView(generics.ListCreateAPIView):
     serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
 
     def get_queryset(self):
         thread_id = self.kwargs.get('thread_id')
@@ -49,11 +53,11 @@ class PostListCreateView(generics.ListCreateAPIView):
 class PostDetailView(generics.RetrieveAPIView):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
 
 class CommentListCreateView(generics.ListCreateAPIView):
     serializer_class = CommentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
     pagination_class = CommentPagination
 
     def get_queryset(self):
@@ -68,10 +72,10 @@ class CommentListCreateView(generics.ListCreateAPIView):
 class CommentDetailView(generics.RetrieveAPIView):
     queryset = Comment.objects.all()
     serializer_class = CommentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
 
 class ThreadStatsView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
     
     def get(self, request, thread_id):
         thread = get_object_or_404(Thread, id=thread_id)
@@ -88,3 +92,41 @@ class ThreadStatsView(APIView):
                 'is_premium': thread.creator.is_premium,
             }
         })
+
+class ThreadLikeToggleView(APIView):
+    permission_classes = [IsAuthenticated, IsNotBanned]
+
+    def post(self, request, thread_id):
+        thread = get_object_or_404(Thread, id=thread_id)
+        user = request.user
+        if thread.likes.filter(id=user.id).exists():
+            thread.likes.remove(user)
+            liked = False
+        else:
+            thread.likes.add(user)
+            liked = True
+        return Response({
+            'liked': liked,
+            'likes_count': thread.likes.count(),
+        })
+
+# Hot Topics API
+class HotTopicsView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+
+    def get(self, request):
+        since = timezone.now() - timedelta(hours=24)
+        threads = Thread.objects.filter(created_at__gte=since)
+        thread_stats = []
+        for thread in threads:
+            like_count = thread.likes.count()
+            comment_count = Comment.objects.filter(post__thread=thread).count()
+            score = like_count * 2 + comment_count
+            thread_stats.append({
+                'thread': ThreadSerializer(thread, context={'request': request}).data,
+                'like_count': like_count,
+                'comment_count': comment_count,
+                'score': score,
+            })
+        hot = sorted(thread_stats, key=lambda x: x['score'], reverse=True)[:10]
+        return Response(hot)
