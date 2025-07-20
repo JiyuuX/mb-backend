@@ -38,17 +38,69 @@ class ConversationListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(conversation)
         return Response(serializer.data, status=201)
 
+from rest_framework.pagination import PageNumberPagination
+
+class MessagePagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 class MessageListCreateView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+    pagination_class = MessagePagination
 
     def get_queryset(self):
         conversation_id = self.kwargs['conversation_id']
         conversation = get_object_or_404(Conversation, id=conversation_id)
         if self.request.user not in conversation.participants.all():
             return Message.objects.none()
-        return conversation.messages.all()
+        # Mesajları tarih sırasına göre sırala (en eski önce)
+        return conversation.messages.all().order_by('created_at')
+
+    def list(self, request, *args, **kwargs):
+        # En son mesajları göstermek için özel pagination
+        queryset = self.get_queryset()
+        
+        # Sayfa numarasını al
+        page = request.query_params.get('page', 1)
+        page_size = int(request.query_params.get('page_size', 20))
+        
+        try:
+            page = int(page)
+        except ValueError:
+            page = 1
+        
+        # Toplam mesaj sayısını al
+        total_messages = queryset.count()
+        
+        # En son mesajlardan başlayarak pagination yap
+        # İlk sayfa en son mesajları gösterir
+        if page == 1:
+            # En son 20 mesajı al
+            start_index = max(0, total_messages - page_size)
+            messages = list(queryset[start_index:])
+        else:
+            # Eski mesajları al (scroll up için)
+            # Sayfa 2 için: 0'dan (total - 2*page_size)'a kadar
+            # Sayfa 3 için: 0'dan (total - 3*page_size)'a kadar
+            start_index = 0
+            end_index = max(0, total_messages - ((page - 1) * page_size))
+            messages = list(queryset[start_index:end_index])
+        
+        serializer = self.get_serializer(messages, many=True)
+        
+        # Pagination bilgilerini hazırla
+        has_next = (page - 1) * page_size < total_messages - page_size
+        has_previous = page > 1
+        
+        return Response({
+            'count': total_messages,
+            'next': f"?page={page + 1}" if has_next else None,
+            'previous': f"?page={page - 1}" if has_previous else None,
+            'results': serializer.data
+        })
 
     def perform_create(self, serializer):
         conversation_id = self.kwargs['conversation_id']
@@ -56,7 +108,9 @@ class MessageListCreateView(generics.ListCreateAPIView):
         if self.request.user not in conversation.participants.all():
             raise PermissionError('Bu konuşmaya mesaj gönderemezsiniz.')
         print(f"Gelen veri: {self.request.data}")  # Debug için
-        serializer.save(sender=self.request.user, conversation=conversation)
+        message = serializer.save(sender=self.request.user, conversation=conversation)
+        print(f"Mesaj oluşturuldu: {message.id} - {message.text}")
+        return message
 
 class MarkConversationReadView(APIView):
     permission_classes = [IsAuthenticated]
