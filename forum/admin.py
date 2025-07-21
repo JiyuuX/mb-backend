@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Thread, Post, Comment
+from .models import Thread, Post, Comment, Report
 
 class CommentInline(admin.TabularInline):
     model = Comment
@@ -13,14 +13,44 @@ class PostInline(admin.TabularInline):
     readonly_fields = ('created_at', 'updated_at')
     fields = ('author', 'content', 'is_edited', 'created_at', 'updated_at')
 
+class ReportInline(admin.TabularInline):
+    model = Report
+    extra = 0
+    readonly_fields = ('report_type', 'target_info', 'reporter_username', 'category', 'reason', 'created_at')
+    fields = ('report_type', 'target_info', 'reporter_username', 'category', 'reason', 'created_at')
+    can_delete = False
+    show_change_link = True
+
+    def report_type(self, obj):
+        if obj.thread:
+            return 'Thread'
+        elif obj.comment:
+            return 'Comment'
+        return '-'
+    report_type.short_description = 'Tip'
+
+    def target_info(self, obj):
+        if obj.thread:
+            return f"{obj.thread.title} (Sahibi: {obj.thread.creator})"
+        elif obj.post:
+            return f"Post: {obj.post.content[:40]}... (Yazar: {obj.post.author})"
+        elif obj.comment:
+            return f"Yorum: {obj.comment.content[:40]}... (Yazar: {obj.comment.author})"
+        return '-'
+    target_info.short_description = 'Raporlanan'
+
+    def reporter_username(self, obj):
+        return obj.reporter.username
+    reporter_username.short_description = 'Raporlayan'
+
 @admin.register(Thread)
 class ThreadAdmin(admin.ModelAdmin):
-    list_display = ('title', 'creator', 'category', 'is_pinned', 'is_locked', 'created_at', 'post_count', 'like_count')
+    list_display = ('title', 'creator', 'category', 'is_pinned', 'is_locked', 'created_at', 'post_count', 'like_count', 'report_count')
     list_filter = ('category', 'is_pinned', 'is_locked', 'created_at')
     search_fields = ('title', 'creator__username', 'creator__email')
     readonly_fields = ('created_at', 'updated_at')
     list_editable = ('is_pinned', 'is_locked')
-    inlines = [PostInline]
+    inlines = [PostInline, ReportInline]
     
     fieldsets = (
         ('Temel Bilgiler', {
@@ -46,6 +76,10 @@ class ThreadAdmin(admin.ModelAdmin):
     def like_count(self, obj):
         return obj.likes.count()
     like_count.short_description = 'Beğeni Sayısı'
+
+    def report_count(self, obj):
+        return obj.reports.count()
+    report_count.short_description = 'Rapor Sayısı'
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
@@ -109,3 +143,33 @@ class CommentAdmin(admin.ModelAdmin):
     def content_preview(self, obj):
         return obj.content[:100] + '...' if len(obj.content) > 100 else obj.content
     content_preview.short_description = 'Yorum Önizleme'
+
+@admin.register(Report)
+class ReportAdmin(admin.ModelAdmin):
+    list_display = ('report_type', 'target_info', 'reporter_username', 'category', 'created_at')
+    list_filter = ('category', 'created_at')
+    search_fields = ('thread__title', 'comment__content', 'reporter__username', 'reason')
+    readonly_fields = ('report_type', 'target_info', 'reporter_username', 'category', 'reason', 'created_at')
+    fields = ('report_type', 'target_info', 'reporter_username', 'category', 'reason', 'created_at')
+
+    def report_type(self, obj):
+        if obj.thread:
+            return 'Thread'
+        elif obj.comment:
+            return 'Comment'
+        return '-'
+    report_type.short_description = 'Tip'
+
+    def target_info(self, obj):
+        if obj.thread:
+            return f"{obj.thread.title} (Sahibi: {obj.thread.creator})"
+        elif obj.post:
+            return f"Post: {obj.post.content[:40]}... (Yazar: {obj.post.author})"
+        elif obj.comment:
+            return f"Yorum: {obj.comment.content[:40]}... (Yazar: {obj.comment.author})"
+        return '-'
+    target_info.short_description = 'Raporlanan'
+
+    def reporter_username(self, obj):
+        return obj.reporter.username
+    reporter_username.short_description = 'Raporlayan'

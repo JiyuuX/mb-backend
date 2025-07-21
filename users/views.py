@@ -208,6 +208,38 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+    
+    def update(self, request, *args, **kwargs):
+        user = self.get_object()
+        
+        # Profil fotoğrafı değişikliği kontrolü
+        if 'profile_picture' in request.data and request.data['profile_picture']:
+            # Eğer yeni bir profil fotoğrafı yükleniyorsa
+            if not user.can_change_profile_picture():
+                return Response({
+                    'message': 'Gün içerisinde maksimum 2 kez profil fotoğrafı değiştirebilirsiniz.',
+                    'error': 'PROFILE_PICTURE_LIMIT_EXCEEDED'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            # GIF kontrolü
+            file = request.data['profile_picture']
+            if hasattr(file, 'content_type'):
+                is_gif = file.content_type == 'image/gif'
+            else:
+                is_gif = str(file).lower().endswith('.gif')
+            if is_gif and not user.is_premium:
+                return Response({
+                    'message': 'Sadece Premium üyeler GIF profil resmine sahip olabilir.',
+                    'error': 'GIF_PROFILE_PICTURE_PREMIUM_ONLY'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Profil güncellemesini yap
+        response = super().update(request, *args, **kwargs)
+        
+        # Eğer profil fotoğrafı başarıyla güncellendiyse kaydet
+        if response.status_code == 200 and 'profile_picture' in request.data and request.data['profile_picture']:
+            user.record_profile_picture_change()
+        
+        return response
 
 class UserUpdateView(generics.UpdateAPIView):
     serializer_class = UserUpdateSerializer
@@ -215,6 +247,38 @@ class UserUpdateView(generics.UpdateAPIView):
     
     def get_object(self):
         return self.request.user
+    
+    def update(self, request, *args, **kwargs):
+        user = self.get_object()
+        
+        # Profil fotoğrafı değişikliği kontrolü
+        if 'profile_picture' in request.data and request.data['profile_picture']:
+            # Eğer yeni bir profil fotoğrafı yükleniyorsa
+            if not user.can_change_profile_picture():
+                return Response({
+                    'message': 'Gün içerisinde maksimum 2 kez profil fotoğrafı değiştirebilirsiniz.',
+                    'error': 'PROFILE_PICTURE_LIMIT_EXCEEDED'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            # GIF kontrolü
+            file = request.data['profile_picture']
+            if hasattr(file, 'content_type'):
+                is_gif = file.content_type == 'image/gif'
+            else:
+                is_gif = str(file).lower().endswith('.gif')
+            if is_gif and not user.is_premium:
+                return Response({
+                    'message': 'Sadece Premium üyeler GIF profil resmine sahip olabilir.',
+                    'error': 'GIF_PROFILE_PICTURE_PREMIUM_ONLY'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Profil güncellemesini yap
+        response = super().update(request, *args, **kwargs)
+        
+        # Eğer profil fotoğrafı başarıyla güncellendiyse kaydet
+        if response.status_code == 200 and 'profile_picture' in request.data and request.data['profile_picture']:
+            user.record_profile_picture_change()
+        
+        return response
 
 class PasswordChangeView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsNotBanned]
@@ -370,3 +434,48 @@ class UserFollowingView(APIView):
             return Response({
                 'message': 'Kullanıcı bulunamadı.'
             }, status=status.HTTP_404_NOT_FOUND)
+
+class UpdateUsernameColorView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+    
+    def post(self, request):
+        user = request.user
+        
+        # Sadece premium kullanıcılar renk değiştirebilir
+        if not user.is_premium_active:
+            return Response({
+                'message': 'Bu özellik sadece premium kullanıcılar için geçerlidir.',
+                'error': 'PREMIUM_REQUIRED'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        color = request.data.get('color')
+        if not color:
+            return Response({
+                'message': 'Renk kodu gereklidir.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Renk formatını kontrol et (hex format)
+        if not color.startswith('#') or len(color) != 7:
+            return Response({
+                'message': 'Geçersiz renk formatı. Hex formatında olmalıdır (örn: #FF0000).'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Siyah ve beyaz renkleri engelle
+        if color.upper() in ['#000000', '#FFFFFF', '#000', '#FFF']:
+            return Response({
+                'message': 'Siyah ve beyaz renkler kullanılamaz.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user.custom_username_color = color
+            user.save()
+            
+            return Response({
+                'message': 'Kullanıcı adı rengi başarıyla güncellendi.',
+                'custom_username_color': color
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'message': f'Renk güncellenirken hata oluştu: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)

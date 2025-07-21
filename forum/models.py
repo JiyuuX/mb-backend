@@ -66,3 +66,33 @@ class Comment(models.Model):
     
     def __str__(self):
         return f"{self.author} - {self.post}"
+
+class Report(models.Model):
+    REPORT_CATEGORIES = [
+        ('spam', 'Spam'),
+        ('abuse', 'Hakaret/İftira'),
+        ('misinfo', 'Yanlış Bilgi'),
+        ('offtopic', 'Konu Dışı'),
+        ('other', 'Diğer'),
+    ]
+    thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name='reports', verbose_name='Raporlanan Konu', null=True, blank=True)
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='reports', verbose_name='Raporlanan Post', null=True, blank=True)
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='reports', verbose_name='Raporlanan Yorum', null=True, blank=True)
+    reporter = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reports_made', verbose_name='Raporlayan')
+    category = models.CharField(max_length=32, choices=REPORT_CATEGORIES, verbose_name='Rapor Kategorisi')
+    reason = models.TextField(blank=True, verbose_name='Açıklama (isteğe bağlı)')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Rapor'
+        verbose_name_plural = 'Raporlar'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        if self.thread:
+            return f"Thread: {self.thread.title} - {self.category} by {self.reporter}"
+        elif self.post:
+            return f"Post: {self.post.id} - {self.category} by {self.reporter}"
+        elif self.comment:
+            return f"Comment: {self.comment.id} - {self.category} by {self.reporter}"
+        return f"Report by {self.reporter}"

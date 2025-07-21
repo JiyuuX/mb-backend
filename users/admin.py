@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser
+from .models import CustomUser, ProfilePictureChange
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
@@ -26,3 +26,12 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('username', 'email', 'password1', 'password2'),
         }),
     )
+
+
+@admin.register(ProfilePictureChange)
+class ProfilePictureChangeAdmin(admin.ModelAdmin):
+    list_display = ('user', 'changed_at')
+    list_filter = ('changed_at',)
+    search_fields = ('user__username', 'user__email')
+    ordering = ('-changed_at',)
+    readonly_fields = ('changed_at',)

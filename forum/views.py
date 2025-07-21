@@ -4,8 +4,8 @@ from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
-from .models import Thread, Post, Comment
-from .serializers import ThreadSerializer, PostSerializer, CommentSerializer
+from .models import Thread, Post, Comment, Report
+from .serializers import ThreadSerializer, PostSerializer, CommentSerializer, ReportSerializer
 from rest_framework.permissions import IsAuthenticated
 from datetime import timedelta
 from django.utils import timezone
@@ -121,6 +121,9 @@ class HotTopicsView(APIView):
         for thread in threads:
             like_count = thread.likes.count()
             comment_count = Comment.objects.filter(post__thread=thread).count()
+            # Filtre: Hem beğeni hem yorum sıfırsa ekleme
+            if like_count == 0 and comment_count == 0:
+                continue
             score = like_count * 2 + comment_count
             thread_stats.append({
                 'thread': ThreadSerializer(thread, context={'request': request}).data,
@@ -130,3 +133,66 @@ class HotTopicsView(APIView):
             })
         hot = sorted(thread_stats, key=lambda x: x['score'], reverse=True)[:10]
         return Response(hot)
+
+class ReportCreateView(APIView):
+    permission_classes = [IsAuthenticated, IsNotBanned]
+
+    def post(self, request, thread_id=None, post_id=None, comment_id=None):
+        user = request.user
+        if thread_id:
+            thread = get_object_or_404(Thread, id=thread_id)
+            # Kendi threadini report edemez
+            if thread.creator == user:
+                return Response({'success': False, 'message': 'Kendi oluşturduğun threadi report edemezsin.'}, status=400)
+            # Aynı kullanıcı aynı thread'i 30 dakika içinde tekrar reportlayamaz
+            thirty_mins_ago = timezone.now() - timedelta(minutes=30)
+            if Report.objects.filter(thread=thread, reporter=user, created_at__gte=thirty_mins_ago).exists():
+                return Response({'success': False, 'message': 'Bu threadi zaten yakın zamanda reportladınız.'}, status=400)
+            serializer = ReportSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(thread=thread, reporter=user)
+                # Otomatik kaldırma kontrolü
+                recent_reports = Report.objects.filter(thread=thread, created_at__gte=thirty_mins_ago).count()
+                if recent_reports >= 10:
+                    thread.is_locked = True
+                    thread.save()
+                return Response({'success': True, 'message': 'Raporunuz alındı.'}, status=201)
+            return Response({'success': False, 'message': serializer.errors}, status=400)
+        elif post_id:
+            from .models import Post
+            post = get_object_or_404(Post, id=post_id)
+            if post.author == user:
+                return Response({'success': False, 'message': 'Kendi postunu report edemezsin.'}, status=400)
+            thirty_mins_ago = timezone.now() - timedelta(minutes=30)
+            if Report.objects.filter(post=post, reporter=user, created_at__gte=thirty_mins_ago).exists():
+                return Response({'success': False, 'message': 'Bu postu zaten yakın zamanda reportladınız.'}, status=400)
+            serializer = ReportSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(post=post, reporter=user)
+                recent_reports = Report.objects.filter(post=post, created_at__gte=thirty_mins_ago).count()
+                if recent_reports >= 10:
+                    post.is_edited = True  # veya post silinebilir
+                    post.save()
+                return Response({'success': True, 'message': 'Post raporlandı.'}, status=201)
+            return Response({'success': False, 'message': serializer.errors}, status=400)
+        elif comment_id:
+            from .models import Comment
+            comment = get_object_or_404(Comment, id=comment_id)
+            # Kendi yorumunu report edemez
+            if comment.author == user:
+                return Response({'success': False, 'message': 'Kendi yorumunu report edemezsin.'}, status=400)
+            thirty_mins_ago = timezone.now() - timedelta(minutes=30)
+            if Report.objects.filter(comment=comment, reporter=user, created_at__gte=thirty_mins_ago).exists():
+                return Response({'success': False, 'message': 'Bu yorumu zaten yakın zamanda reportladınız.'}, status=400)
+            serializer = ReportSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(comment=comment, reporter=user)
+                # Otomatik kaldırma kontrolü
+                recent_reports = Report.objects.filter(comment=comment, created_at__gte=thirty_mins_ago).count()
+                if recent_reports >= 10:
+                    comment.is_edited = True  # veya comment silinebilir
+                    comment.save()
+                return Response({'success': True, 'message': 'Yorum raporlandı.'}, status=201)
+            return Response({'success': False, 'message': serializer.errors}, status=400)
+        else:
+            return Response({'success': False, 'message': 'Geçersiz istek.'}, status=400)

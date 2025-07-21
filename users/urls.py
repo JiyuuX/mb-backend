@@ -4,7 +4,7 @@ from .views import (
     UserViewSet, UserRegistrationView, UserLoginView, EmailVerificationView, 
     ResendVerificationEmailView, UserProfileView, UserUpdateView, PasswordChangeView, 
     LogoutView, ActivatePremiumView, PublicProfileView, FollowUserView, 
-    UserFollowersView, UserFollowingView
+    UserFollowersView, UserFollowingView, UpdateUsernameColorView
 )
 
 router = DefaultRouter()
@@ -21,6 +21,7 @@ urlpatterns = [
     path('update/', UserUpdateView.as_view(), name='update'),
     path('change-password/', PasswordChangeView.as_view(), name='change-password'),
     path('activate-premium/', ActivatePremiumView.as_view(), name='activate-premium'),
+    path('update-username-color/', UpdateUsernameColorView.as_view(), name='update-username-color'),
     # Public profile and follow system
     path('public/<str:username>/', PublicProfileView.as_view(), name='public-profile'),
     path('follow/', FollowUserView.as_view(), name='follow-user'),

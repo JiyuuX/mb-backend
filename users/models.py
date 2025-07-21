@@ -99,3 +99,36 @@ class CustomUser(AbstractUser):
     def thread_count(self):
         """Kullanıcının oluşturduğu thread sayısını döndürür"""
         return self.threads.count()
+    
+    def can_change_profile_picture(self):
+        """Günlük profil fotoğrafı değiştirme limitini kontrol eder"""
+        from django.utils import timezone
+        from datetime import datetime, time
+        
+        today_start = datetime.combine(timezone.now().date(), time.min)
+        today_end = datetime.combine(timezone.now().date(), time.max)
+        
+        # Bugün yapılan profil fotoğrafı değişikliklerini say
+        today_changes = ProfilePictureChange.objects.filter(
+            user=self,
+            changed_at__range=(today_start, today_end)
+        ).count()
+        
+        return today_changes < 2  # Günlük maksimum 2 değişiklik
+    
+    def record_profile_picture_change(self):
+        """Profil fotoğrafı değişikliğini kaydeder"""
+        ProfilePictureChange.objects.create(user=self)
+
+
+class ProfilePictureChange(models.Model):
+    """Profil fotoğrafı değişikliklerini takip eder"""
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='profile_picture_changes')
+    changed_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = 'Profil Fotoğrafı Değişikliği'
+        verbose_name_plural = 'Profil Fotoğrafı Değişiklikleri'
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.changed_at.strftime('%Y-%m-%d %H:%M')}"
