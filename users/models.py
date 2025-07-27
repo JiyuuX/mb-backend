@@ -46,6 +46,12 @@ class CustomUser(AbstractUser):
     ban_reason = models.CharField(max_length=255, blank=True, null=True, verbose_name='Ban Sebebi')
     ban_until = models.DateTimeField(blank=True, null=True, verbose_name='Ban Bitiş Tarihi (süresiz için boş)')
     
+    # Üniversite bilgisi
+    university = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Şehir bilgisi
+    city = models.CharField(max_length=100, blank=True, null=True)
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

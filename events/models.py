@@ -101,6 +101,7 @@ class Event(models.Model):
     capacity = models.PositiveIntegerField(default=100)
     created_at = models.DateTimeField(auto_now_add=True)
     is_approved = models.BooleanField(default=True)  # Etkinlik onay durumu
+    organizer = models.CharField(max_length=255, blank=True, null=True, default="")
 
     def __str__(self):
         return f'{self.name} - {self.venue} ({self.get_city_display()})'

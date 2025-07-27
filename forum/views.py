@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from datetime import timedelta
 from django.utils import timezone
 from users.permissions import IsNotBanned
+from rest_framework.decorators import api_view
 
 # Create your views here.
 
@@ -196,3 +197,22 @@ class ReportCreateView(APIView):
             return Response({'success': False, 'message': serializer.errors}, status=400)
         else:
             return Response({'success': False, 'message': 'Geçersiz istek.'}, status=400)
+
+@api_view(['GET'])
+def campus_forum_threads(request):
+    university = request.GET.get('university')
+    forum_type = request.GET.get('forum_type')
+    if not university or not forum_type:
+        return Response({'success': False, 'message': 'university ve forum_type parametreleri gerekli.'}, status=400)
+    threads = Thread.objects.filter(university=university, forum_type=forum_type).order_by('-is_pinned', '-created_at')
+    serializer = ThreadSerializer(threads, many=True, context={'request': request})
+    # Ekstra: like_count ve comment_count ekle
+    thread_data = []
+    for thread, data in zip(threads, serializer.data):
+        like_count = thread.likes.count()
+        comment_count = Comment.objects.filter(post__thread=thread).count()
+        data = dict(data)
+        data['like_count'] = like_count
+        data['comment_count'] = comment_count
+        thread_data.append(data)
+    return Response({'success': True, 'threads': thread_data})

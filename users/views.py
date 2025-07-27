@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.utils import timezone
+from datetime import timedelta
 from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
@@ -16,11 +17,12 @@ from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer, UserProfileSerializer,
     UserUpdateSerializer, EmailVerificationSerializer, PasswordChangeSerializer,
     PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
-    PublicProfileSerializer, FollowSerializer
+    PublicProfileSerializer, FollowSerializer, UserSerializer
 )
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from .permissions import IsNotBanned
+from django.db.models import Count, Q
 
 class UserRegistrationView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -479,3 +481,141 @@ class UpdateUsernameColorView(APIView):
             return Response({
                 'message': f'Renk güncellenirken hata oluştu: {str(e)}'
             }, status=status.HTTP_400_BAD_REQUEST)
+
+class UniversityListView(APIView):
+    def get(self, request):
+        universities = [
+            "Abant İzzet Baysal Üniversitesi",
+            "Adana Alparslan Türkeş Bilim ve Teknoloji Üniversitesi",
+            "Adıyaman Üniversitesi",
+            "Afyon Kocatepe Üniversitesi",
+            "Afyonkarahisar Sağlık Bilimleri Üniversitesi",
+            "Ağrı İbrahim Çeçen Üniversitesi",
+            "Aksaray Üniversitesi",
+            "Alanya Alaaddin Keykubat Üniversitesi",
+            "Amasya Üniversitesi",
+            "Anadolu Üniversitesi",
+            "Ankara Hacı Bayram Veli Üniversitesi",
+            "Ankara Üniversitesi",
+            "Ankara Yıldırım Beyazıt Üniversitesi",
+            "Antalya Bilim Üniversitesi",
+            "Ardahan Üniversitesi",
+            "Artvin Çoruh Üniversitesi",
+            "Atatürk Üniversitesi",
+            "Balıkesir Üniversitesi",
+            "Bandırma Onyedi Eylül Üniversitesi",
+            "Bartın Üniversitesi",
+            "Batman Üniversitesi",
+            "Bayburt Üniversitesi",
+            "Bilecik Şeyh Edebali Üniversitesi",
+            "Bingöl Üniversitesi",
+            "Bitlis Eren Üniversitesi",
+            "Boğaziçi Üniversitesi",
+            "Bolu Abant İzzet Baysal Üniversitesi",
+            "Burdur Mehmet Akif Ersoy Üniversitesi",
+            "Bursa Teknik Üniversitesi",
+            "Bursa Uludağ Üniversitesi",
+            "Çanakkale Onsekiz Mart Üniversitesi",
+            "Çankırı Karatekin Üniversitesi",
+            "Çukurova Üniversitesi",
+            "Dicle Üniversitesi",
+            "Düzce Üniversitesi",
+            "Ege Üniversitesi",
+            "Erciyes Üniversitesi",
+            "Erzincan Binali Yıldırım Üniversitesi",
+            "Erzurum Teknik Üniversitesi",
+            "Eskişehir Osmangazi Üniversitesi",
+            "Eskişehir Teknik Üniversitesi",
+            "Fırat Üniversitesi",
+            "Galatasaray Üniversitesi",
+            "Gaziantep Üniversitesi",
+            "Gaziosmanpaşa Üniversitesi",
+            "Gebze Teknik Üniversitesi",
+            "Giresun Üniversitesi",
+            "Gümüşhane Üniversitesi",
+            "Hacettepe Üniversitesi",
+            "Hakkari Üniversitesi",
+            "Harran Üniversitesi",
+            "Hatay Mustafa Kemal Üniversitesi",
+            "Hitit Üniversitesi",
+            "Iğdır Üniversitesi",
+            "Isparta Uygulamalı Bilimler Üniversitesi",
+            "İnönü Üniversitesi",
+            "İskenderun Teknik Üniversitesi",
+            "İstanbul Medeniyet Üniversitesi",
+            "İstanbul Teknik Üniversitesi",
+            "İstanbul Üniversitesi",
+            "İstanbul Üniversitesi-Cerrahpaşa",
+            "İzmir Bakırçay Üniversitesi",
+            "İzmir Demokrasi Üniversitesi",
+            "İzmir Katip Çelebi Üniversitesi",
+            "İzmir Yüksek Teknoloji Enstitüsü",
+            "Kafkas Üniversitesi",
+            "Kahramanmaraş Sütçü İmam Üniversitesi",
+            "Karabük Üniversitesi",
+            "Karadeniz Teknik Üniversitesi",
+            "Karamanoğlu Mehmetbey Üniversitesi",
+            "Kastamonu Üniversitesi",
+            "Kayseri Üniversitesi",
+            "Kırıkkale Üniversitesi",
+            "Kırklareli Üniversitesi",
+            "Kırşehir Ahi Evran Üniversitesi",
+            "Kilis 7 Aralık Üniversitesi",
+            "Kocaeli Üniversitesi",
+            "Konya Teknik Üniversitesi",
+            "KTO Karatay Üniversitesi",
+            "Malatya Turgut Özal Üniversitesi",
+            "Manisa Celal Bayar Üniversitesi",
+            "Mardin Artuklu Üniversitesi",
+            "Marmara Üniversitesi",
+            "Mersin Üniversitesi",
+            "Muğla Sıtkı Koçman Üniversitesi",
+            "Munzur Üniversitesi",
+            "Muş Alparslan Üniversitesi",
+            "Nevşehir Hacı Bektaş Veli Üniversitesi",
+            "Niğde Ömer Halisdemir Üniversitesi",
+            "Ondokuz Mayıs Üniversitesi",
+            "Ordu Üniversitesi",
+            "Osmaniye Korkut Ata Üniversitesi",
+            "Pamukkale Üniversitesi",
+            "Recep Tayyip Erdoğan Üniversitesi",
+            "Sakarya Üniversitesi",
+            "Samsun Üniversitesi",
+            "Siirt Üniversitesi",
+            "Sinop Üniversitesi",
+            "Sivas Cumhuriyet Üniversitesi",
+            "Süleyman Demirel Üniversitesi",
+            "Şırnak Üniversitesi",
+            "Tekirdağ Namık Kemal Üniversitesi",
+            "Tokat Gaziosmanpaşa Üniversitesi",
+            "Trabzon Üniversitesi",
+            "Trakya Üniversitesi",
+            "Tunceli Munzur Üniversitesi",
+            "Uşak Üniversitesi",
+            "Van Yüzüncü Yıl Üniversitesi",
+            "Yalova Üniversitesi",
+            "Yıldız Teknik Üniversitesi",
+            "Yozgat Bozok Üniversitesi",
+            "Zonguldak Bülent Ecevit Üniversitesi"
+        ]
+        return Response({"universities": universities})
+
+@api_view(['GET'])
+def popular_users(request):
+    one_month_ago = timezone.now() - timedelta(days=30)
+    # Son 1 ayda açılan threadlerin toplam like sayısı ve yeni takipçi sayısı
+    users = CustomUser.objects.annotate(
+        thread_likes=Count('threads__likes', filter=Q(threads__created_at__gte=one_month_ago)),
+        new_followers=Count('followers', filter=Q(followers__created_at__gte=one_month_ago)),
+        popularity=Count('threads__likes', filter=Q(threads__created_at__gte=one_month_ago)) + Count('followers', filter=Q(followers__created_at__gte=one_month_ago))
+    ).order_by('-popularity')[:10]
+    serializer = UserSerializer(users, many=True)
+    # Her kullanıcıya popülerlik detaylarını ekle
+    data = []
+    for user, user_data in zip(users, serializer.data):
+        user_data = dict(user_data)
+        user_data['thread_likes'] = user.thread_likes
+        user_data['new_followers'] = user.new_followers
+        user_data['popularity'] = user.popularity
+        data.append(user_data)
+    return Response({'success': True, 'users': data})

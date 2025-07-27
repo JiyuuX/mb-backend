@@ -35,10 +35,12 @@ class DashboardFeedView(APIView):
     def get(self, request):
         now = timezone.now().date()
         three_days_later = now + timezone.timedelta(days=3)
-        # Dashboard'da sadece 3 gün ve daha az kalan etkinlikler
-        events = Event.objects.filter(is_approved=True, date__gte=now, date__lte=three_days_later).order_by('date')[:5]
+        city = request.query_params.get('city')
+        events_qs = Event.objects.filter(is_approved=True, date__gte=now, date__lte=three_days_later)
+        if city:
+            events_qs = events_qs.filter(city__iexact=city)
+        events = events_qs.order_by('date')[:5]
         announcements = Announcement.objects.filter(is_active=True, publish_date__lte=timezone.now()).order_by('-publish_date')[:5]
-        # Reklamlar için ileride ekleme yapılabilir
         return Response({
             'upcoming_events': EventSerializer(events, many=True).data,
             'announcements': AnnouncementSerializer(announcements, many=True).data,

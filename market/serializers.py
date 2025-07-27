@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Product, ProductImage, Category, SubCategory
+from .models import Product, ProductImage, Category, SubCategory, DiscountVenue, Accommodation
 from users.serializers import UserProfileSerializer
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -41,3 +41,13 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_favorite_count(self, obj):
         return obj.favorited_by.count() 
+
+class DiscountVenueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DiscountVenue
+        fields = ['id', 'name', 'city', 'description', 'is_premium_only', 'is_active', 'created_at'] 
+
+class AccommodationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Accommodation
+        fields = ['id', 'name', 'city', 'description', 'price', 'is_active', 'created_at'] 

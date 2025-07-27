@@ -24,9 +24,9 @@ class TicketInline(admin.TabularInline):
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ('name', 'venue', 'city', 'date', 'time', 'ticket_price', 'capacity', 'ticket_count')
-    list_filter = ('date', 'is_approved', 'venue', 'city')
-    search_fields = ('name', 'venue', 'description', 'city')
+    list_display = ('name', 'venue', 'city', 'date', 'time', 'ticket_price', 'capacity', 'ticket_count', 'organizer')
+    list_filter = ('date', 'is_approved', 'venue', 'city', 'organizer')
+    search_fields = ('name', 'venue', 'description', 'city', 'organizer')
     readonly_fields = ('created_at',)
     
     inlines = [TicketInline]

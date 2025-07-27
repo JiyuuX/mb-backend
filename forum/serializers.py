@@ -14,7 +14,7 @@ class ThreadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Thread
-        fields = ['id', 'title', 'creator', 'created_at', 'updated_at', 'is_pinned', 'is_locked', 'category', 'likes_count', 'is_liked']
+        fields = ['id', 'title', 'creator', 'created_at', 'updated_at', 'is_pinned', 'is_locked', 'category', 'forum_type', 'university', 'likes_count', 'is_liked']
         read_only_fields = ['creator', 'created_at', 'updated_at', 'likes_count', 'is_liked']
 
     def get_likes_count(self, obj):

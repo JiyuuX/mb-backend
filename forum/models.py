@@ -27,6 +27,14 @@ class Thread(models.Model):
     category = models.CharField(max_length=32, choices=CATEGORY_CHOICES, default='genel', verbose_name='Kategori')
     likes = models.ManyToManyField(User, related_name='liked_threads', blank=True, verbose_name='Beğenenler')
     
+    FORUM_TYPE_CHOICES = [
+        ('genel', 'Genel'),
+        ('itiraf', 'İtiraf'),
+        ('yardim', 'Soru-Yardımlaşma'),
+    ]
+    forum_type = models.CharField(max_length=16, choices=FORUM_TYPE_CHOICES, default='genel', verbose_name='Forum Tipi')
+    university = models.CharField(max_length=100, blank=True, null=True, verbose_name='Üniversite (Kampüs forumları için)')
+    
     class Meta:
         verbose_name = 'Konu'
         verbose_name_plural = 'Konular'

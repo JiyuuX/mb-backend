@@ -4,7 +4,7 @@ from .views import (
     UserViewSet, UserRegistrationView, UserLoginView, EmailVerificationView, 
     ResendVerificationEmailView, UserProfileView, UserUpdateView, PasswordChangeView, 
     LogoutView, ActivatePremiumView, PublicProfileView, FollowUserView, 
-    UserFollowersView, UserFollowingView, UpdateUsernameColorView
+    UserFollowersView, UserFollowingView, UpdateUsernameColorView, UniversityListView, popular_users
 )
 
 router = DefaultRouter()
@@ -27,4 +27,6 @@ urlpatterns = [
     path('follow/', FollowUserView.as_view(), name='follow-user'),
     path('followers/<str:username>/', UserFollowersView.as_view(), name='user-followers'),
     path('following/<str:username>/', UserFollowingView.as_view(), name='user-following'),
+    path('universities/', UniversityListView.as_view(), name='university-list'),
+    path('popular-users/', popular_users, name='popular-users'),
 ] 

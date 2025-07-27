@@ -11,6 +11,12 @@ from rest_framework.views import APIView
 from .serializers import CategorySerializer
 from .models import Category
 from users.permissions import IsNotBanned
+from .models import DiscountVenue
+from .serializers import DiscountVenueSerializer
+from .models import Accommodation
+from .serializers import AccommodationSerializer
+from django.db.models import Q
+from rest_framework.pagination import PageNumberPagination
 
 # Create your views here.
 
@@ -71,5 +77,74 @@ class CategoryListView(APIView):
         categories = Category.objects.prefetch_related('subcategories').all()
         serializer = CategorySerializer(categories, many=True)
         return Response(serializer.data)
+
+class DiscountVenueListView(APIView):
+    def get(self, request):
+        city = request.GET.get('city')
+        is_premium = request.GET.get('is_premium')
+        venues = DiscountVenue.objects.filter(is_active=True)
+        if city:
+            venues = venues.filter(city__iexact=city)
+        if is_premium == 'true':
+            venues = venues.filter(is_premium_only=True)
+        serializer = DiscountVenueSerializer(venues, many=True)
+        return Response({'success': True, 'venues': serializer.data})
+
+class AccommodationListView(APIView):
+    def get(self, request):
+        city = request.GET.get('city')
+        accommodations = Accommodation.objects.filter(is_active=True)
+        if city:
+            accommodations = accommodations.filter(city__iexact=city)
+        serializer = AccommodationSerializer(accommodations, many=True)
+        return Response({'success': True, 'accommodations': serializer.data})
+
+class AllProductsListView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+    
+    def get(self, request):
+        # Pagination
+        page = int(request.GET.get('page', 1))
+        page_size = 50
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        # Search functionality
+        search_query = request.GET.get('search', '')
+        
+        # Base queryset - newest first
+        products = Product.objects.all().order_by('-created_at')
+        
+        # Apply search filter if query provided
+        if search_query:
+            products = products.filter(
+                Q(title__icontains=search_query) |
+                Q(description__icontains=search_query) |
+                Q(category__name__icontains=search_query) |
+                Q(subcategory__name__icontains=search_query) |
+                Q(city__icontains=search_query)
+            )
+        
+        # Get total count for pagination info
+        total_count = products.count()
+        
+        # Apply pagination
+        products = products[start:end]
+        
+        # Serialize products
+        serializer = ProductSerializer(products, many=True, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'products': serializer.data,
+            'pagination': {
+                'current_page': page,
+                'page_size': page_size,
+                'total_count': total_count,
+                'total_pages': (total_count + page_size - 1) // page_size,
+                'has_next': end < total_count,
+                'has_previous': page > 1
+            }
+        })
 
 # Sabit kategori dict ve force coding kaldırıldı. Kategori endpointi serializer ile model tabanlı olacak.

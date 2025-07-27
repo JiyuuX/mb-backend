@@ -32,6 +32,7 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.PROTECT, null=True, blank=True)
     subcategory = models.ForeignKey(SubCategory, on_delete=models.PROTECT, null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='used')
+    city = models.CharField(max_length=100, verbose_name="Şehir", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     # Favori sistemi
     favorited_by = models.ManyToManyField(get_user_model(), related_name='favorited_products', blank=True)
@@ -45,3 +46,35 @@ class ProductImage(models.Model):
 
     def __str__(self):
         return f"{self.product.title} - Image {self.id}"
+
+class DiscountVenue(models.Model):
+    name = models.CharField(max_length=100, verbose_name="Mekan Adı")
+    city = models.CharField(max_length=100, verbose_name="Şehir")
+    description = models.TextField(verbose_name="Açıklama", blank=True)
+    is_premium_only = models.BooleanField(default=True, verbose_name="Sadece Premium Üyeler İçin")
+    is_active = models.BooleanField(default=True, verbose_name="Aktif mi?")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Oluşturulma Tarihi")
+
+    class Meta:
+        verbose_name = "İndirimli Mekan"
+        verbose_name_plural = "İndirimli Mekanlar"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} - {self.city}"
+
+class Accommodation(models.Model):
+    name = models.CharField(max_length=100, verbose_name="Konaklama Adı")
+    city = models.CharField(max_length=100, verbose_name="Şehir")
+    description = models.TextField(verbose_name="Açıklama", blank=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Fiyat")
+    is_active = models.BooleanField(default=True, verbose_name="Aktif mi?")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Oluşturulma Tarihi")
+
+    class Meta:
+        verbose_name = "Konaklama"
+        verbose_name_plural = "Konaklamalar"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} - {self.city}"

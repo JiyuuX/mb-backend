@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     ThreadListCreateView, ThreadDetailView, PostListCreateView, 
     PostDetailView, CommentListCreateView, CommentDetailView, ThreadStatsView,
-    ThreadLikeToggleView, HotTopicsView, ReportCreateView
+    ThreadLikeToggleView, HotTopicsView, ReportCreateView, campus_forum_threads
 )
 
 urlpatterns = [
@@ -18,4 +18,5 @@ urlpatterns = [
     path('threads/<int:thread_id>/report/', ReportCreateView.as_view(), name='thread-report'),
     path('comments/<int:comment_id>/report/', ReportCreateView.as_view(), name='comment-report'),
     path('posts/<int:post_id>/report/', ReportCreateView.as_view(), name='post-report'),
+    path('threads/campus/', campus_forum_threads, name='campus-forum-threads'),
 ] 

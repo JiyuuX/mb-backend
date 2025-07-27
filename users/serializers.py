@@ -6,10 +6,12 @@ from .models import CustomUser
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
+    university = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    city = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     
     class Meta:
         model = CustomUser
-        fields = ('username', 'email', 'password', 'password_confirm', 'first_name', 'last_name')
+        fields = ('username', 'email', 'password', 'password_confirm', 'first_name', 'last_name', 'university', 'city')
         extra_kwargs = {
             'first_name': {'required': True},
             'last_name': {'required': True},
@@ -82,6 +84,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     is_banned = serializers.ReadOnlyField()
     ban_reason = serializers.ReadOnlyField()
     ban_until = serializers.ReadOnlyField()
+    university = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    city = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     
     class Meta:
         model = CustomUser
@@ -91,7 +95,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
                  'can_create_threads', 'is_secondhand_seller', 'instagram', 'twitter', 
                  'facebook', 'linkedin', 'website', 'followers_count', 'following_count',
                  'is_following', 'created_at', 'updated_at', 'thread_count',
-                 'is_banned', 'ban_reason', 'ban_until')
+                 'is_banned', 'ban_reason', 'ban_until', 'university', 'city')
         read_only_fields = ('id', 'username', 'email', 'is_premium', 'is_premium_active',
                            'email_verified', 'premium_expires_at', 'card_number', 'card_issued_at',
                            'can_create_threads', 'created_at', 'updated_at',
@@ -104,9 +108,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return False
 
 class UserUpdateSerializer(serializers.ModelSerializer):
+    university = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    city = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     class Meta:
         model = CustomUser
-        fields = ('first_name', 'last_name', 'profile_picture', 'bio', 'phone_number', 'custom_username_color')
+        fields = ('first_name', 'last_name', 'profile_picture', 'bio', 'phone_number', 'custom_username_color', 'university', 'city')
 
 class EmailVerificationSerializer(serializers.Serializer):
     token = serializers.UUIDField()
@@ -138,12 +144,14 @@ class UserSerializer(serializers.ModelSerializer):
     is_banned = serializers.ReadOnlyField()
     ban_reason = serializers.ReadOnlyField()
     ban_until = serializers.ReadOnlyField()
+    university = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    city = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_premium', 'is_premium_active', 
                  'email_verified', 'profile_picture', 'bio', 'phone_number', 'custom_username_color',
                  'card_number', 'card_issued_at', 'can_create_threads', 'is_secondhand_seller', 
-                 'created_at', 'updated_at', 'is_banned', 'ban_reason', 'ban_until']
+                 'created_at', 'updated_at', 'is_banned', 'ban_reason', 'ban_until', 'university', 'city']
         read_only_fields = ['id', 'created_at', 'updated_at', 'is_banned', 'ban_reason', 'ban_until']
 
 class PublicProfileSerializer(serializers.ModelSerializer):
@@ -160,6 +168,8 @@ class PublicProfileSerializer(serializers.ModelSerializer):
     is_banned = serializers.ReadOnlyField()
     ban_reason = serializers.ReadOnlyField()
     ban_until = serializers.ReadOnlyField()
+    university = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    city = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     
     class Meta:
         model = CustomUser
@@ -169,7 +179,7 @@ class PublicProfileSerializer(serializers.ModelSerializer):
                  'is_premium', 'is_premium_active', 'email_verified', 'can_create_threads',
                  'is_secondhand_seller', 'followers_count', 'following_count',
                  'is_following', 'created_at', 'updated_at', 'thread_count',
-                 'is_banned', 'ban_reason', 'ban_until']
+                 'is_banned', 'ban_reason', 'ban_until', 'university', 'city']
         read_only_fields = ['id', 'email', 'is_premium', 'is_premium_active', 'email_verified',
                            'card_number', 'card_issued_at', 'can_create_threads', 'created_at', 'updated_at',
                            'is_banned', 'ban_reason', 'ban_until']
