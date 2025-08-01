@@ -43,9 +43,10 @@ class ProductSerializer(serializers.ModelSerializer):
         return obj.favorited_by.count() 
 
 class DiscountVenueSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(use_url=True)
     class Meta:
         model = DiscountVenue
-        fields = ['id', 'name', 'city', 'description', 'is_premium_only', 'is_active', 'created_at'] 
+        fields = ['id', 'name', 'image', 'is_active', 'created_at'] 
 
 class AccommodationSerializer(serializers.ModelSerializer):
     class Meta:

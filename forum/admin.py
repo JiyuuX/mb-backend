@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Thread, Post, Comment, Report
+from .models import Thread, Post, Comment, Report, DailyPopularThread
 
 class CommentInline(admin.TabularInline):
     model = Comment
@@ -173,3 +173,33 @@ class ReportAdmin(admin.ModelAdmin):
     def reporter_username(self, obj):
         return obj.reporter.username
     reporter_username.short_description = 'Raporlayan'
+
+@admin.register(DailyPopularThread)
+class DailyPopularThreadAdmin(admin.ModelAdmin):
+    list_display = ('thread_title', 'forum_type', 'university', 'date', 'like_count', 'comment_count', 'score')
+    list_filter = ('forum_type', 'university', 'date')
+    search_fields = ('thread__title', 'university')
+    readonly_fields = ('thread', 'date', 'like_count', 'comment_count', 'score', 'forum_type', 'university')
+    ordering = ('-date', '-score')
+    
+    fieldsets = (
+        ('Temel Bilgiler', {
+            'fields': ('thread', 'forum_type', 'university')
+        }),
+        ('Tarih', {
+            'fields': ('date',)
+        }),
+        ('İstatistikler', {
+            'fields': ('like_count', 'comment_count', 'score')
+        }),
+    )
+    
+    def thread_title(self, obj):
+        return obj.thread.title
+    thread_title.short_description = 'Thread Başlığı'
+    
+    def has_add_permission(self, request):
+        return False  # Manuel eklemeyi engelle
+    
+    def has_change_permission(self, request, obj=None):
+        return False  # Düzenlemeyi engelle

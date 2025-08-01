@@ -19,11 +19,20 @@ class Conversation(models.Model):
         return self.messages.order_by('-created_at').first()
 
 class Message(models.Model):
+    STATUS_CHOICES = [
+        ('sending', 'Gönderiliyor'),
+        ('sent', 'Gönderildi'),
+        ('delivered', 'İletildi'),
+        ('read', 'Okundu'),
+        ('failed', 'Başarısız'),
+    ]
+    
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages')
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_messages')
     text = models.TextField(blank=True, null=True)
     media = models.FileField(upload_to='chat_media/', blank=True, null=True)
     is_read = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='sent')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

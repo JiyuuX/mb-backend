@@ -2,15 +2,16 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 import uuid
+import random
 
 class CustomUser(AbstractUser):
     # Premium üyelik durumu
     is_premium = models.BooleanField(default=False)
     premium_expires_at = models.DateTimeField(null=True, blank=True)
     
-    # Email aktivasyonu
+    # Email aktivasyonu - 6 haneli kod sistemi
     email_verified = models.BooleanField(default=False)
-    email_verification_token = models.UUIDField(default=uuid.uuid4, editable=False)
+    email_verification_code = models.CharField(max_length=6, blank=True, null=True)
     email_verification_sent_at = models.DateTimeField(null=True, blank=True)
     
     # Profil bilgileri
@@ -46,6 +47,12 @@ class CustomUser(AbstractUser):
     ban_reason = models.CharField(max_length=255, blank=True, null=True, verbose_name='Ban Sebebi')
     ban_until = models.DateTimeField(blank=True, null=True, verbose_name='Ban Bitiş Tarihi (süresiz için boş)')
     
+    # Geçici doğrulama alanları (isim/soyisim değişikliği için)
+    temp_verification_code = models.CharField(max_length=6, blank=True, null=True)
+    temp_first_name = models.CharField(max_length=30, blank=True, null=True)
+    temp_last_name = models.CharField(max_length=30, blank=True, null=True)
+    temp_verification_expires = models.DateTimeField(blank=True, null=True)
+    
     # Üniversite bilgisi
     university = models.CharField(max_length=100, blank=True, null=True)
     
@@ -62,6 +69,21 @@ class CustomUser(AbstractUser):
     
     def __str__(self):
         return self.username
+    
+    def generate_verification_code(self):
+        """6 haneli doğrulama kodu oluşturur"""
+        code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        self.email_verification_code = code
+        self.email_verification_sent_at = timezone.now()
+        self.save()
+        return code
+    
+    def is_verification_code_expired(self):
+        """Doğrulama kodunun süresi dolmuş mu kontrol eder (5 dakika)"""
+        if not self.email_verification_sent_at:
+            return True
+        time_diff = timezone.now() - self.email_verification_sent_at
+        return time_diff.total_seconds() > 300  # 5 dakika = 300 saniye
     
     @property
     def is_premium_active(self):
@@ -138,3 +160,41 @@ class ProfilePictureChange(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.changed_at.strftime('%Y-%m-%d %H:%M')}"
+
+
+class Notification(models.Model):
+    """Kullanıcı bildirimleri"""
+    NOTIFICATION_TYPES = [
+        ('follow', 'Takip'),
+        ('like', 'Beğeni'),
+        ('comment', 'Yorum'),
+        ('mention', 'Etiketleme'),
+        ('system', 'Sistem'),
+    ]
+    
+    recipient = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='notifications')
+    sender = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='sent_notifications', null=True, blank=True)
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = 'Bildirim'
+        verbose_name_plural = 'Bildirimler'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.recipient.username} - {self.title}"
+    
+    @classmethod
+    def create_follow_notification(cls, follower, followed_user):
+        """Takip bildirimi oluşturur"""
+        return cls.objects.create(
+            recipient=followed_user,
+            sender=follower,
+            notification_type='follow',
+            title='Yeni Takipçi',
+            message=f'{follower.username} sizi takip etmeye başladı.'
+        )

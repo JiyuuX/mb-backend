@@ -48,10 +48,8 @@ class ProductImage(models.Model):
         return f"{self.product.title} - Image {self.id}"
 
 class DiscountVenue(models.Model):
-    name = models.CharField(max_length=100, verbose_name="Mekan Adı")
-    city = models.CharField(max_length=100, verbose_name="Şehir")
-    description = models.TextField(verbose_name="Açıklama", blank=True)
-    is_premium_only = models.BooleanField(default=True, verbose_name="Sadece Premium Üyeler İçin")
+    name = models.CharField(max_length=100, verbose_name="İşletme Adı")
+    image = models.ImageField(upload_to='discount_venues/', verbose_name="Tanıtım Resmi/GIF", blank=True, null=True)
     is_active = models.BooleanField(default=True, verbose_name="Aktif mi?")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Oluşturulma Tarihi")
 
@@ -61,7 +59,7 @@ class DiscountVenue(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.name} - {self.city}"
+        return self.name
 
 class Accommodation(models.Model):
     name = models.CharField(max_length=100, verbose_name="Konaklama Adı")

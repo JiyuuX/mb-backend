@@ -34,18 +34,45 @@ class ProductViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(seller=self.request.user)
 
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
+        serializer.is_valid(raise_exception=True)
+        
+        # Eğer yeni görseller yüklendiyse, eski görselleri sil
+        if 'images' in request.FILES:
+            # Eski görselleri sil
+            instance.images.all().delete()
+            
+        self.perform_update(serializer)
+        return Response(serializer.data)
+
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
 
-    @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
+    @action(detail=True, methods=['post', 'put'], parser_classes=[MultiPartParser, FormParser])
     def upload_image(self, request, pk=None):
         product = self.get_object()
+        
+        # PUT request ise (güncelleme), eski görselleri sil
+        if request.method == 'PUT':
+            product.images.all().delete()
+        
+        # Yeni görselleri ekle
+        images = request.FILES.getlist('images')
+        if images:
+            for image_file in images:
+                ProductImage.objects.create(product=product, image=image_file)
+            return Response({'success': True, 'message': 'Görseller güncellendi.'})
+        
+        # Tek görsel için eski yöntem (geriye uyumluluk)
         image_file = request.FILES.get('image')
         if image_file:
             ProductImage.objects.create(product=product, image=image_file)
             return Response({'success': True, 'message': 'Görsel yüklendi.'})
+        
         return Response({'success': False, 'message': 'Görsel bulunamadı.'}, status=400)
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated, IsNotBanned])
@@ -80,13 +107,7 @@ class CategoryListView(APIView):
 
 class DiscountVenueListView(APIView):
     def get(self, request):
-        city = request.GET.get('city')
-        is_premium = request.GET.get('is_premium')
-        venues = DiscountVenue.objects.filter(is_active=True)
-        if city:
-            venues = venues.filter(city__iexact=city)
-        if is_premium == 'true':
-            venues = venues.filter(is_premium_only=True)
+        venues = DiscountVenue.objects.filter(is_active=True).order_by('-created_at')
         serializer = DiscountVenueSerializer(venues, many=True)
         return Response({'success': True, 'venues': serializer.data})
 
@@ -145,6 +166,22 @@ class AllProductsListView(APIView):
                 'has_next': end < total_count,
                 'has_previous': page > 1
             }
+        })
+
+class FreeProductsListView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+    
+    def get(self, request):
+        # Fiyatı 0 TL olan ürünleri getir
+        free_products = Product.objects.filter(price=0).order_by('-created_at')
+        
+        # Serialize products
+        serializer = ProductSerializer(free_products, many=True, context={'request': request})
+        
+        return Response({
+            'success': True,
+            'products': serializer.data,
+            'total_count': free_products.count()
         })
 
 # Sabit kategori dict ve force coding kaldırıldı. Kategori endpointi serializer ile model tabanlı olacak.

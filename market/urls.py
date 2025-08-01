@@ -1,5 +1,5 @@
 from rest_framework.routers import DefaultRouter
-from .views import ProductViewSet, CategoryListView, DiscountVenueListView, AccommodationListView, AllProductsListView
+from .views import ProductViewSet, CategoryListView, DiscountVenueListView, AccommodationListView, AllProductsListView, FreeProductsListView
 from django.urls import path
 
 router = DefaultRouter()
@@ -9,6 +9,7 @@ router.register(r'products', ProductViewSet, basename='product')
 urlpatterns = router.urls + [
     path('categories/', CategoryListView.as_view(), name='category-list'),
     path('all-products/', AllProductsListView.as_view(), name='all-products-list'),
+    path('free-products/', FreeProductsListView.as_view(), name='free-products-list'),
     path('discount-venues/', DiscountVenueListView.as_view(), name='discount-venue-list'),
     path('accommodations/', AccommodationListView.as_view(), name='accommodation-list'),
 ] 

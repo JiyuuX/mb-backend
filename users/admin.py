@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, ProfilePictureChange
+from .models import CustomUser, ProfilePictureChange, Notification
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
@@ -35,3 +35,13 @@ class ProfilePictureChangeAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'user__email')
     ordering = ('-changed_at',)
     readonly_fields = ('changed_at',)
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('recipient', 'sender', 'notification_type', 'title', 'is_read', 'created_at')
+    list_filter = ('notification_type', 'is_read', 'created_at')
+    search_fields = ('recipient__username', 'sender__username', 'title', 'message')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at',)
+    list_per_page = 50

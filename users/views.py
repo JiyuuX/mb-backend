@@ -12,12 +12,12 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.urls import reverse
 from django.shortcuts import get_object_or_404
-from .models import CustomUser
+from .models import CustomUser, Notification
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer, UserProfileSerializer,
     UserUpdateSerializer, EmailVerificationSerializer, PasswordChangeSerializer,
     PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
-    PublicProfileSerializer, FollowSerializer, UserSerializer
+    PublicProfileSerializer, FollowSerializer, UserSerializer, NotificationSerializer
 )
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
@@ -32,12 +32,17 @@ class UserRegistrationView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             
-            # Email aktivasyon mesajı gönder
-            self.send_verification_email(user)
+            # 6 haneli doğrulama kodu oluştur
+            verification_code = user.generate_verification_code()
+            
+            # Kodu backend'de printle (şimdilik)
+            print(f"Kullanıcı {user.email} için doğrulama kodu: {verification_code}")
             
             return Response({
                 'message': 'Kayıt başarılı! Email adresinizi doğrulamanız gerekiyor.',
-                'user_id': user.id
+                'user_id': user.id,
+                'verification_code': verification_code,  # Frontend'de göstermek için
+                'email': user.email
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -73,6 +78,19 @@ class UserLoginView(APIView):
         serializer = UserLoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
+            
+            # Email doğrulanmış mı kontrol et
+            if not user.email_verified:
+                # Yeni kod oluştur
+                verification_code = user.generate_verification_code()
+                print(f"Giriş denemesi - Kullanıcı {user.email} için doğrulama kodu: {verification_code}")
+                
+                return Response({
+                    'message': 'Email adresinizi doğrulamanız gerekiyor.',
+                    'email_verification_required': True,
+                    'verification_code': verification_code,
+                    'email': user.email
+                }, status=status.HTTP_401_UNAUTHORIZED)
             
             # JWT token oluştur
             refresh = RefreshToken.for_user(user)
@@ -117,19 +135,33 @@ class UserLoginView(APIView):
 class EmailVerificationView(APIView):
     permission_classes = [permissions.AllowAny]
     
-    def get(self, request, token):
+    def post(self, request):
+        email = request.data.get('email')
+        code = request.data.get('code')
+        
+        if not email or not code:
+            return Response({
+                'message': 'Email ve doğrulama kodu gereklidir.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
-            user = CustomUser.objects.get(email_verification_token=token)
+            user = CustomUser.objects.get(email=email)
             
-            # Token'ın geçerlilik süresini kontrol et (24 saat)
-            if user.email_verification_sent_at:
-                time_diff = timezone.now() - user.email_verification_sent_at
-                if time_diff.total_seconds() > 86400:  # 24 saat
-                    return Response({
-                        'message': 'Email doğrulama linki süresi dolmuş. Yeni bir link talep edin.'
-                    }, status=status.HTTP_400_BAD_REQUEST)
+            # Kodun süresi dolmuş mu kontrol et
+            if user.is_verification_code_expired():
+                return Response({
+                    'message': 'Doğrulama kodunun süresi dolmuş. Yeni bir kod talep edin.'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
+            # Kodu kontrol et
+            if user.email_verification_code != code:
+                return Response({
+                    'message': 'Geçersiz doğrulama kodu.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Email'i doğrula
             user.email_verified = True
+            user.email_verification_code = None  # Kodu temizle
             user.save()
             
             return Response({
@@ -138,7 +170,7 @@ class EmailVerificationView(APIView):
             
         except CustomUser.DoesNotExist:
             return Response({
-                'message': 'Geçersiz doğrulama linki.'
+                'message': 'Bu email adresi ile kayıtlı kullanıcı bulunamadı.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
 class ResendVerificationEmailView(APIView):
@@ -158,15 +190,16 @@ class ResendVerificationEmailView(APIView):
                     'message': 'Bu email adresi zaten doğrulanmış.'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Yeni token oluştur
-            user.email_verification_token = user.email_verification_token
-            user.save()
+            # Yeni kod oluştur
+            verification_code = user.generate_verification_code()
             
-            # Email gönder
-            self.send_verification_email(user)
+            # Kodu backend'de printle (şimdilik)
+            print(f"Kullanıcı {user.email} için yeni doğrulama kodu: {verification_code}")
             
             return Response({
-                'message': 'Doğrulama emaili tekrar gönderildi.'
+                'message': 'Yeni doğrulama kodu oluşturuldu.',
+                'verification_code': verification_code,  # Frontend'de göstermek için
+                'email': user.email
             }, status=status.HTTP_200_OK)
             
         except CustomUser.DoesNotExist:
@@ -387,8 +420,12 @@ class FollowUserView(APIView):
                 
                 if action == 'follow':
                     if request.user != target_user:
+                        # Takip işlemi
                         request.user.following.add(target_user)
                         message = f'{target_user.username} kullanıcısını takip etmeye başladınız.'
+                        
+                        # Takip bildirimi oluştur
+                        Notification.create_follow_notification(request.user, target_user)
                     else:
                         return Response({
                             'message': 'Kendinizi takip edemezsiniz.'
@@ -481,6 +518,147 @@ class UpdateUsernameColorView(APIView):
             return Response({
                 'message': f'Renk güncellenirken hata oluştu: {str(e)}'
             }, status=status.HTTP_400_BAD_REQUEST)
+
+class RequestNameChangeView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+    
+    def post(self, request):
+        try:
+            first_name = request.data.get('first_name')
+            last_name = request.data.get('last_name')
+            
+            if not first_name and not last_name:
+                return Response({
+                    'message': 'En az bir alan (isim veya soyisim) gereklidir.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            user = request.user
+            
+            # Doğrulama kodu oluştur
+            verification_code = user.generate_verification_code()
+            
+            # Kodu backend'de printle (şimdilik)
+            print(f"İsim değişikliği - Kullanıcı {user.email} için doğrulama kodu: {verification_code}")
+            
+            # Geçici olarak kodu user model'inde sakla
+            user.temp_verification_code = verification_code
+            user.temp_first_name = first_name
+            user.temp_last_name = last_name
+            user.temp_verification_expires = timezone.now() + timedelta(minutes=5)
+            user.save()
+            
+            print(f"DEBUG - User model saved for user {user.email}")
+            print(f"DEBUG - Stored code: {user.temp_verification_code}")
+            print(f"DEBUG - Stored first_name: {user.temp_first_name}")
+            print(f"DEBUG - Stored last_name: {user.temp_last_name}")
+            print(f"DEBUG - Stored expires: {user.temp_verification_expires}")
+            
+            return Response({
+                'message': 'Doğrulama kodu e-posta adresinize gönderildi.',
+                'verification_code': verification_code,  # Frontend'de göstermek için
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'message': f'İsim değişikliği isteği gönderilemedi: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class VerifyNameChangeView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+    
+    def post(self, request):
+        try:
+            verification_code = request.data.get('verification_code')
+            
+            if not verification_code:
+                return Response({
+                    'message': 'Doğrulama kodu gereklidir.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            user = request.user
+            
+            # User model'inden geçici kodları kontrol et
+            stored_code = user.temp_verification_code
+            stored_first_name = user.temp_first_name
+            stored_last_name = user.temp_last_name
+            stored_expires = user.temp_verification_expires
+            
+            print(f"DEBUG - Verification attempt for user {user.email}")
+            print(f"DEBUG - Received code: {verification_code}")
+            print(f"DEBUG - Stored code: {stored_code}")
+            print(f"DEBUG - Stored first_name: {stored_first_name}")
+            print(f"DEBUG - Stored last_name: {stored_last_name}")
+            print(f"DEBUG - Stored expires: {stored_expires}")
+            
+            if not stored_code or not stored_expires:
+                return Response({
+                    'message': 'Doğrulama kodu bulunamadı veya süresi dolmuş.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Süre kontrolü
+            if timezone.now() > stored_expires:
+                # Süresi dolmuş kodları temizle
+                user.temp_verification_code = None
+                user.temp_first_name = None
+                user.temp_last_name = None
+                user.temp_verification_expires = None
+                user.save()
+                return Response({
+                    'message': 'Doğrulama kodunun süresi dolmuş.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Kod kontrolü
+            if verification_code != stored_code:
+                return Response({
+                    'message': 'Doğrulama kodu hatalı.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # İsim değişikliklerini uygula
+            if stored_first_name is not None:
+                user.first_name = stored_first_name
+            if stored_last_name is not None:
+                user.last_name = stored_last_name
+            
+            # Geçici kodları temizle
+            user.temp_verification_code = None
+            user.temp_first_name = None
+            user.temp_last_name = None
+            user.temp_verification_expires = None
+            user.save()
+            
+            return Response({
+                'message': 'İsim ve soyisim başarıyla güncellendi.'
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'message': f'İsim güncellenirken hata oluştu: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class DeleteAccountView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+    
+    def post(self, request):
+        password = request.data.get('password')
+        
+        if not password:
+            return Response({
+                'message': 'Şifre gereklidir.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Kullanıcının şifresini doğrula
+        user = request.user
+        if not user.check_password(password):
+            return Response({
+                'message': 'Şifre yanlış.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Kullanıcıyı sil
+        user.delete()
+        
+        return Response({
+            'message': 'Hesabınız başarıyla silindi.'
+        }, status=status.HTTP_200_OK)
 
 class UniversityListView(APIView):
     def get(self, request):
@@ -602,20 +780,92 @@ class UniversityListView(APIView):
 
 @api_view(['GET'])
 def popular_users(request):
-    one_month_ago = timezone.now() - timedelta(days=30)
-    # Son 1 ayda açılan threadlerin toplam like sayısı ve yeni takipçi sayısı
-    users = CustomUser.objects.annotate(
-        thread_likes=Count('threads__likes', filter=Q(threads__created_at__gte=one_month_ago)),
-        new_followers=Count('followers', filter=Q(followers__created_at__gte=one_month_ago)),
-        popularity=Count('threads__likes', filter=Q(threads__created_at__gte=one_month_ago)) + Count('followers', filter=Q(followers__created_at__gte=one_month_ago))
-    ).order_by('-popularity')[:10]
-    serializer = UserSerializer(users, many=True)
-    # Her kullanıcıya popülerlik detaylarını ekle
-    data = []
-    for user, user_data in zip(users, serializer.data):
-        user_data = dict(user_data)
-        user_data['thread_likes'] = user.thread_likes
-        user_data['new_followers'] = user.new_followers
-        user_data['popularity'] = user.popularity
-        data.append(user_data)
-    return Response({'success': True, 'users': data})
+    """Aylık en popüler 10 kullanıcıyı döndürür"""
+    try:
+        # Son 30 günün tarihini hesapla
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        
+        # Popüler kullanıcıları hesapla
+        popular_users = CustomUser.objects.filter(
+            is_active=True,
+            is_banned=False
+        ).annotate(
+            # Thread beğeni sayısı
+            thread_likes=Count('threads__likes', filter=Q(threads__created_at__gte=thirty_days_ago)),
+            # Yeni takipçi sayısı
+            new_followers=Count('followers', filter=Q(followers__date_joined__gte=thirty_days_ago)),
+            # Toplam popülerlik puanı
+            popularity=Count('threads__likes', filter=Q(threads__created_at__gte=thirty_days_ago)) + 
+                     Count('followers', filter=Q(followers__date_joined__gte=thirty_days_ago)) * 2
+        ).filter(
+            popularity__gt=0
+        ).order_by('-popularity')[:10]
+        
+        serializer = PublicProfileSerializer(popular_users, many=True, context={'request': request})
+        return Response(serializer.data)
+        
+    except Exception as e:
+        return Response({
+            'error': 'Popüler kullanıcılar yüklenirken hata oluştu.',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class NotificationListView(APIView):
+    """Kullanıcının bildirimlerini listeler"""
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+    
+    def get(self, request):
+        try:
+            notifications = Notification.objects.filter(recipient=request.user).order_by('-created_at')
+            serializer = NotificationSerializer(notifications, many=True)
+            
+            # Okunmamış bildirim sayısını hesapla
+            unread_count = notifications.filter(is_read=False).count()
+            
+            return Response({
+                'notifications': serializer.data,
+                'unread_count': unread_count,
+                'total_count': notifications.count()
+            })
+        except Exception as e:
+            return Response({
+                'error': 'Bildirimler yüklenirken hata oluştu.',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class MarkNotificationsAsReadView(APIView):
+    """Tüm bildirimleri okundu olarak işaretler"""
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+    
+    def post(self, request):
+        try:
+            # Kullanıcının tüm bildirimlerini okundu olarak işaretle
+            Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+            
+            return Response({
+                'message': 'Tüm bildirimler okundu olarak işaretlendi.'
+            })
+        except Exception as e:
+            return Response({
+                'error': 'Bildirimler güncellenirken hata oluştu.',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UnreadNotificationCountView(APIView):
+    """Okunmamış bildirim sayısını döndürür"""
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+    
+    def get(self, request):
+        try:
+            unread_count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+            return Response({
+                'unread_count': unread_count
+            })
+        except Exception as e:
+            return Response({
+                'error': 'Bildirim sayısı alınırken hata oluştu.',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

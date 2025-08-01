@@ -94,23 +94,6 @@ class ThreadStatsView(APIView):
             }
         })
 
-class ThreadLikeToggleView(APIView):
-    permission_classes = [IsAuthenticated, IsNotBanned]
-
-    def post(self, request, thread_id):
-        thread = get_object_or_404(Thread, id=thread_id)
-        user = request.user
-        if thread.likes.filter(id=user.id).exists():
-            thread.likes.remove(user)
-            liked = False
-        else:
-            thread.likes.add(user)
-            liked = True
-        return Response({
-            'liked': liked,
-            'likes_count': thread.likes.count(),
-        })
-
 # Hot Topics API
 class HotTopicsView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsNotBanned]
@@ -134,6 +117,149 @@ class HotTopicsView(APIView):
             })
         hot = sorted(thread_stats, key=lambda x: x['score'], reverse=True)[:10]
         return Response(hot)
+
+# Campus Daily Popular Threads API
+class CampusDailyPopularView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsNotBanned]
+
+    def get(self, request):
+        university = request.GET.get('university')
+        forum_type = request.GET.get('forum_type', 'genel')
+        
+        if not university:
+            return Response({'success': False, 'message': 'university parametresi gerekli.'}, status=400)
+        
+        from .models import DailyPopularThread
+        from datetime import date
+        
+        today = date.today()
+        
+        # Bugün için popüler thread'i al
+        daily_popular = DailyPopularThread.objects.filter(
+            date=today,
+            forum_type=forum_type,
+            university=university
+        ).first()
+        
+        if daily_popular:
+            # İstatistikleri güncelle
+            daily_popular.update_stats()
+            
+            return Response({
+                'success': True,
+                'thread': ThreadSerializer(daily_popular.thread, context={'request': request}).data,
+                'like_count': daily_popular.like_count,
+                'comment_count': daily_popular.comment_count,
+                'score': daily_popular.score,
+                'date': daily_popular.date,
+            })
+        else:
+            # Bugün için popüler thread yoksa, son 24 saatteki en popüler thread'i bul
+            since = timezone.now() - timedelta(hours=24)
+            threads = Thread.objects.filter(
+                university=university,
+                forum_type=forum_type,
+                created_at__gte=since
+            )
+            
+            thread_stats = []
+            for thread in threads:
+                like_count = thread.likes.count()
+                comment_count = Comment.objects.filter(post__thread=thread).count()
+                if like_count == 0 and comment_count == 0:
+                    continue
+                score = like_count * 2 + comment_count
+                thread_stats.append({
+                    'thread': thread,
+                    'like_count': like_count,
+                    'comment_count': comment_count,
+                    'score': score,
+                })
+            
+            if thread_stats:
+                # En popüler thread'i seç
+                most_popular = max(thread_stats, key=lambda x: x['score'])
+                
+                # DailyPopularThread kaydı oluştur
+                daily_popular = DailyPopularThread.objects.create(
+                    thread=most_popular['thread'],
+                    forum_type=forum_type,
+                    university=university,
+                    like_count=most_popular['like_count'],
+                    comment_count=most_popular['comment_count'],
+                    score=most_popular['score']
+                )
+                
+                return Response({
+                    'success': True,
+                    'thread': ThreadSerializer(most_popular['thread'], context={'request': request}).data,
+                    'like_count': most_popular['like_count'],
+                    'comment_count': most_popular['comment_count'],
+                    'score': most_popular['score'],
+                    'date': daily_popular.date,
+                })
+            else:
+                return Response({
+                    'success': False,
+                    'message': 'Bu forum tipi için popüler thread bulunamadı.'
+                }, status=404)
+
+# Thread Like Toggle View'ını güncelle - günlük popülerlik takibi için
+class ThreadLikeToggleView(APIView):
+    permission_classes = [IsAuthenticated, IsNotBanned]
+
+    def post(self, request, thread_id):
+        thread = get_object_or_404(Thread, id=thread_id)
+        user = request.user
+        if thread.likes.filter(id=user.id).exists():
+            thread.likes.remove(user)
+            liked = False
+        else:
+            thread.likes.add(user)
+            liked = True
+        
+        # Günlük popülerlik takibini güncelle
+        from .models import DailyPopularThread
+        from datetime import date
+        
+        today = date.today()
+        
+        # Genel forum için günlük popülerlik takibi
+        if thread.forum_type == 'genel' and not thread.university:
+            daily_popular, created = DailyPopularThread.objects.get_or_create(
+                thread=thread,
+                date=today,
+                forum_type='genel',
+                university=None,
+                defaults={
+                    'like_count': thread.likes.count(),
+                    'comment_count': Comment.objects.filter(post__thread=thread).count(),
+                    'score': thread.likes.count() * 2 + Comment.objects.filter(post__thread=thread).count()
+                }
+            )
+            if not created:
+                daily_popular.update_stats()
+        
+        # Kampüs forumu için günlük popülerlik takibi
+        elif thread.university:
+            daily_popular, created = DailyPopularThread.objects.get_or_create(
+                thread=thread,
+                date=today,
+                forum_type=thread.forum_type,
+                university=thread.university,
+                defaults={
+                    'like_count': thread.likes.count(),
+                    'comment_count': Comment.objects.filter(post__thread=thread).count(),
+                    'score': thread.likes.count() * 2 + Comment.objects.filter(post__thread=thread).count()
+                }
+            )
+            if not created:
+                daily_popular.update_stats()
+        
+        return Response({
+            'liked': liked,
+            'likes_count': thread.likes.count(),
+        })
 
 class ReportCreateView(APIView):
     permission_classes = [IsAuthenticated, IsNotBanned]

@@ -18,8 +18,15 @@ class UpcomingEventsListView(generics.ListAPIView):
     def get_queryset(self):
         now = timezone.now().date()
         three_days_later = now + timezone.timedelta(days=3)
-        # Sadece 3 günden fazla kalan etkinlikler
-        return Event.objects.filter(is_approved=True, date__gt=three_days_later).order_by('date')
+        # Dashboard'la aynı mantık: bugünden 3 güne kadar olan etkinlikler
+        queryset = Event.objects.filter(is_approved=True, date__gte=now, date__lte=three_days_later).order_by('date')
+        
+        # Şehir filtresi ekle
+        city = self.request.query_params.get('city')
+        if city:
+            queryset = queryset.filter(city__iexact=city)
+        
+        return queryset
 
 class ActiveAnnouncementsListView(generics.ListAPIView):
     serializer_class = AnnouncementSerializer

@@ -104,3 +104,29 @@ class Report(models.Model):
         elif self.comment:
             return f"Comment: {self.comment.id} - {self.category} by {self.reporter}"
         return f"Report by {self.reporter}"
+
+class DailyPopularThread(models.Model):
+    """Günlük popüler thread takibi için model"""
+    thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name='daily_popularity', verbose_name='Thread')
+    date = models.DateField(auto_now_add=True, verbose_name='Tarih')
+    like_count = models.IntegerField(default=0, verbose_name='Beğeni Sayısı')
+    comment_count = models.IntegerField(default=0, verbose_name='Yorum Sayısı')
+    score = models.IntegerField(default=0, verbose_name='Toplam Puan')
+    forum_type = models.CharField(max_length=16, choices=Thread.FORUM_TYPE_CHOICES, verbose_name='Forum Tipi')
+    university = models.CharField(max_length=100, blank=True, null=True, verbose_name='Üniversite')
+    
+    class Meta:
+        verbose_name = 'Günlük Popüler Thread'
+        verbose_name_plural = 'Günlük Popüler Threadler'
+        unique_together = ['thread', 'date', 'forum_type', 'university']
+        ordering = ['-date', '-score']
+    
+    def __str__(self):
+        return f"{self.thread.title} - {self.date} - {self.forum_type}"
+    
+    def update_stats(self):
+        """Thread'in güncel istatistiklerini güncelle"""
+        self.like_count = self.thread.likes.count()
+        self.comment_count = Comment.objects.filter(post__thread=self.thread).count()
+        self.score = self.like_count * 2 + self.comment_count
+        self.save()

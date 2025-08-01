@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from .models import CustomUser
+from .models import CustomUser, Notification
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
@@ -42,8 +42,7 @@ class UserLoginSerializer(serializers.Serializer):
                 raise serializers.ValidationError('Geçersiz kullanıcı adı veya şifre.')
             if not user.is_active:
                 raise serializers.ValidationError('Hesabınız aktif değil.')
-            if not user.email_verified:
-                raise serializers.ValidationError('Email adresinizi doğrulamanız gerekiyor.')
+            # Email verification kontrolü view'da yapılacak
             # Ban kontrolü
             if user.is_banned:
                 from django.utils import timezone
@@ -170,6 +169,10 @@ class PublicProfileSerializer(serializers.ModelSerializer):
     ban_until = serializers.ReadOnlyField()
     university = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     city = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    # Popülerlik alanları
+    popularity = serializers.ReadOnlyField()
+    thread_likes = serializers.ReadOnlyField()
+    new_followers = serializers.ReadOnlyField()
     
     class Meta:
         model = CustomUser
@@ -179,10 +182,11 @@ class PublicProfileSerializer(serializers.ModelSerializer):
                  'is_premium', 'is_premium_active', 'email_verified', 'can_create_threads',
                  'is_secondhand_seller', 'followers_count', 'following_count',
                  'is_following', 'created_at', 'updated_at', 'thread_count',
-                 'is_banned', 'ban_reason', 'ban_until', 'university', 'city']
+                 'is_banned', 'ban_reason', 'ban_until', 'university', 'city',
+                 'popularity', 'thread_likes', 'new_followers']
         read_only_fields = ['id', 'email', 'is_premium', 'is_premium_active', 'email_verified',
                            'card_number', 'card_issued_at', 'can_create_threads', 'created_at', 'updated_at',
-                           'is_banned', 'ban_reason', 'ban_until']
+                           'is_banned', 'ban_reason', 'ban_until', 'popularity', 'thread_likes', 'new_followers']
     
     def get_is_following(self, obj):
         request = self.context.get('request')
@@ -192,4 +196,17 @@ class PublicProfileSerializer(serializers.ModelSerializer):
 
 class FollowSerializer(serializers.Serializer):
     user_id = serializers.IntegerField()
-    action = serializers.ChoiceField(choices=['follow', 'unfollow']) 
+    action = serializers.ChoiceField(choices=['follow', 'unfollow'])
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    sender_username = serializers.CharField(source='sender.username', read_only=True)
+    sender_profile_picture = serializers.CharField(source='sender.profile_picture', read_only=True)
+    notification_type_display = serializers.CharField(source='get_notification_type_display', read_only=True)
+    
+    class Meta:
+        model = Notification
+        fields = ['id', 'sender', 'sender_username', 'sender_profile_picture', 'notification_type', 
+                 'notification_type_display', 'title', 'message', 'is_read', 'created_at']
+        read_only_fields = ['id', 'sender', 'sender_username', 'sender_profile_picture', 
+                           'notification_type', 'notification_type_display', 'title', 'message', 'created_at'] 
